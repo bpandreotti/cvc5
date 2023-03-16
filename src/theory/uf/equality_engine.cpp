@@ -20,6 +20,7 @@
 
 #include "base/output.h"
 #include "options/smt_options.h"
+#include "options/uf_options.h"
 #include "smt/env.h"
 #include "theory/rewriter.h"
 #include "theory/uf/eq_proof.h"
@@ -502,7 +503,12 @@ bool EqualityEngine::assertEquality(TNode eq,
   if (polarity) {
     // If two terms are already equal, don't assert anything
     if (hasTerm(eq[0]) && hasTerm(eq[1]) && areEqual(eq[0], eq[1])) {
-      return false;
+      if (options().uf.ufKeepRedundant) {
+        std::cout << "redundant equality added: " << eq << std::endl;
+      } else {
+        std::cout << "redundant equality ignored: " << eq << std::endl;
+        return false;
+      }
     }
     // Add equality between terms
     assertEqualityInternal(eq[0], eq[1], reason, pid);
@@ -1921,7 +1927,9 @@ void EqualityEngine::propagate() {
 
     // If already the same, we're done
     if (t1classId == t2classId) {
-      continue;
+      if (!options().uf.ufKeepRedundant) {
+        continue;
+      }
     }
 
     Trace("equality::internal") << d_name << "::eq::propagate(): t1: " << (d_isInternal[t1classId] ? "internal" : "proper") << std::endl;

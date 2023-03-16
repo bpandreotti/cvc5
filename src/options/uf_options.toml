@@ -74,3 +74,11 @@ name   = "Uninterpreted Functions Theory"
   type       = "bool"
   default    = "false"
   help       = "eagerly expand bit-vector to arithmetic conversions during preprocessing"
+
+[[option]]
+  name       = "ufKeepRedundant"
+  category   = "undocumented"
+  long       = "uf-keep-redundant"
+  type       = "bool"
+  default    = "false"
+  help       = "keep redundant equalities in congruence closure"
