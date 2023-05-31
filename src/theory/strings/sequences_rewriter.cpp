@@ -4,7 +4,7 @@
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2023 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -1199,9 +1199,9 @@ Node SequencesRewriter::rewriteLoopRegExp(TNode node)
   Node retNode = node;
 
   NodeManager* nm = NodeManager::currentNM();
-  if (u < l)
+  if (u < l || u == 0)
   {
-    // ((_ re.loop l u) r) --> re.none if u < l
+    // ((_ re.loop l u) r) --> re.none if u < l or u==0
     std::vector<Node> nvec;
     retNode = nm->mkNode(REGEXP_NONE, nvec);
     return returnRewrite(node, retNode, Rewrite::RE_LOOP_NONE);
