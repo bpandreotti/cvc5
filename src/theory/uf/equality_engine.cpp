@@ -1342,6 +1342,96 @@ Node EqualityEngine::mkExplainLit(TNode lit) const
   return ret;
 }
 
+std::pair<int, std::vector<EqualityEdgeId>> EqualityEngine::shortestPath(
+    EqualityNodeId start,
+    EqualityNodeId end,
+    const std::vector<int>& edgeWeights) const
+{
+  std::vector<int> distFromStart(d_nodes.size());
+  std::vector<EqualityEdgeId> traversed(d_nodes.size());
+  std::unordered_set<EqualityNodeId> unvisited;
+
+  for (EqualityNodeId nodeId = 0; nodeId < d_nodes.size(); ++nodeId)
+  {
+    unvisited.insert(nodeId);
+    distFromStart[nodeId] = std::numeric_limits<int>::max();
+    traversed[nodeId] = null_edge;
+  }
+  distFromStart[start] = 0;
+
+  EqualityNodeId currentNode = null_id;
+  while (!unvisited.empty())
+  {
+    auto element = std::min_element(
+        unvisited.begin(), unvisited.end(), [&](const auto& a, const auto& b) {
+          return distFromStart[a] < distFromStart[b];
+        });
+    currentNode = *element;
+
+    if (distFromStart[currentNode] == std::numeric_limits<int>::max()) break;
+
+    unvisited.erase(element);
+
+    if (currentNode == end) break;
+
+    for (EqualityEdgeId edge = d_equalityGraph[currentNode]; edge != null_edge;
+         edge = d_equalityEdges[edge].getNext())
+    {
+      if (edgeWeights[edge] == std::numeric_limits<int>::max()) continue;
+
+      auto next = d_equalityEdges[edge].getNodeId();
+      int alt = distFromStart[currentNode] + edgeWeights[edge];
+      if (alt < distFromStart[next])
+      {
+        distFromStart[next] = alt;
+        traversed[next] = edge;
+      }
+    }
+  }
+  return std::make_pair(distFromStart[end], traversed);
+}
+
+std::pair<int, std::vector<EqualityEdgeId>> EqualityEngine::optimalTreeSizePath(
+    EqualityNodeId start, EqualityNodeId end) const
+{
+  std::vector<int> edgeWeights(d_equalityEdges.size());
+  int numCongruenceEdges = 0;
+  for (EqualityEdgeId i = 0; i < d_equalityEdges.size(); ++i)
+  {
+    if (d_equalityEdges[i].getReasonType() == MERGED_THROUGH_CONGRUENCE)
+    {
+      edgeWeights[i] = std::numeric_limits<int>::max();
+      numCongruenceEdges++;
+    }
+    else
+    {
+      edgeWeights[i] = 1;
+    }
+  }
+
+  for (int j = 0; j < numCongruenceEdges; ++j)
+  {
+    for (EqualityEdgeId i = 0; i < d_equalityEdges.size(); i += 2)
+    {
+      if (d_equalityEdges[i].getReasonType() == MERGED_THROUGH_CONGRUENCE)
+      {
+        EqualityNodeId node1 = d_equalityEdges[i].getNodeId();
+        const FunctionApplication& f1 = d_applications[node1].d_original;
+
+        EqualityNodeId node2 = d_equalityEdges[i + 1].getNodeId();
+        const FunctionApplication& f2 = d_applications[node2].d_original;
+
+        int newWeight = shortestPath(f1.d_a, f2.d_a, edgeWeights).first
+                        + shortestPath(f1.d_b, f2.d_b, edgeWeights).first;
+        edgeWeights[i] = newWeight;
+        edgeWeights[i + 1] = newWeight;
+      }
+    }
+  }
+
+  return shortestPath(start, end, edgeWeights);
+}
+
 void EqualityEngine::getExplanation(
     EqualityNodeId t1Id,
     EqualityNodeId t2Id,
@@ -1434,52 +1524,19 @@ void EqualityEngine::getExplanation(
     return;
   }
 
-  std::vector<int> distances(d_nodes.size());
-  std::vector<EqualityNodeId> previous(d_nodes.size());
-  std::vector<EqualityEdgeId> traversed(d_nodes.size());
-  std::unordered_set<EqualityNodeId> unvisited;
-
-  for (EqualityNodeId nodeId = 0; nodeId < d_nodes.size(); ++nodeId) {
-    unvisited.insert(nodeId);
-    distances[nodeId] = std::numeric_limits<int>::max();
-    previous[nodeId] = null_id;
-    traversed[nodeId] = null_edge;
-  }
-  distances[t1Id] = 0;
-
-  EqualityNodeId currentNode = null_id;
-  while (!unvisited.empty()) {
-    auto element = std::min_element(unvisited.begin(), unvisited.end(), [&](const auto& a, const auto& b) {
-      return distances[a] < distances[b];
-    });
-    currentNode = *element;
-    unvisited.erase(element);
-
-    if (currentNode == t2Id) {
-      break;
-    }
-
-    for (EqualityEdgeId edge = d_equalityGraph[currentNode]; edge != null_edge; edge = d_equalityEdges[edge].getNext()) {
-      auto next = d_equalityEdges[edge].getNodeId();
-      int alt = distances[currentNode] + 1; // TODO: actually compute the edge distance (tree size)
-      if (alt < distances[next]) {
-        distances[next] = alt;
-        previous[next] = currentNode;
-        traversed[next] = edge;
-      }
-    }
-  }
+  std::vector<EqualityEdgeId> traversed =
+      optimalTreeSizePath(t1Id, t2Id).second;
 
   Trace("equality") << d_name << "::eq::getExplanation(): path found: " << std::endl;
 
   std::vector<std::shared_ptr<EqProof>> eqp_trans;
 
   // Reconstruct the path
+  EqualityNodeId currentNode = t2Id;
   EqualityEdgeId currentEdgeId = traversed[currentNode];
-
   do {
     EqualityNodeId edgeNode = currentNode;
-    currentNode = previous[currentNode];
+    currentNode = d_equalityEdges[currentEdgeId ^ 1].getNodeId();
     const EqualityEdge& edge = d_equalityEdges[currentEdgeId];
 
     MergeReasonType reasonType = static_cast<MergeReasonType>(

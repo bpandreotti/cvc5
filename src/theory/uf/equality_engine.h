@@ -594,6 +594,14 @@ class EqualityEngine : public context::ContextNotifyObj, protected EnvObj
                          EqualityNodeId id2,
                          EqProof* eqp) const;
 
+  std::pair<int, std::vector<EqualityEdgeId>> shortestPath(
+      EqualityNodeId start,
+      EqualityNodeId end,
+      const std::vector<int>& edgeWeights) const;
+
+  std::pair<int, std::vector<EqualityEdgeId>> optimalTreeSizePath(
+      EqualityNodeId start, EqualityNodeId end) const;
+
   /**
    * Get an explanation of the equality t1 = t2. Returns the asserted equalities
    * that imply t1 = t2. Returns TNodes as the assertion equalities should be
