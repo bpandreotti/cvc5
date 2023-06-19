@@ -1395,6 +1395,19 @@ std::pair<int, std::vector<EqualityEdgeId>> EqualityEngine::optimalTreeSizePath(
     EqualityNodeId start, EqualityNodeId end) const
 {
   std::vector<int> edgeWeights(d_equalityEdges.size());
+
+  // If the `--uf-keep-redundant` flag was not set, there will only be one path
+  // between the two vertices in the e-graph anyway, so we optimize for this
+  // case by doing a simple `shortestPath`
+  if (!options().uf.ufKeepRedundant)
+  {
+    for (EqualityEdgeId i = 0; i < d_equalityEdges.size(); ++i)
+    {
+      edgeWeights[i] = 1;
+    }
+    return shortestPath(start, end, edgeWeights);
+  }
+
   int numCongruenceEdges = 0;
   for (EqualityEdgeId i = 0; i < d_equalityEdges.size(); ++i)
   {
