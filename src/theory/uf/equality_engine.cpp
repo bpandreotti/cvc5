@@ -1424,6 +1424,7 @@ std::pair<int, std::vector<EqualityEdgeId>> EqualityEngine::optimalTreeSizePath(
 
   for (int j = 0; j < numCongruenceEdges; ++j)
   {
+    bool changed = false;
     for (EqualityEdgeId i = 0; i < d_equalityEdges.size(); i += 2)
     {
       if (d_equalityEdges[i].getReasonType() == MERGED_THROUGH_CONGRUENCE)
@@ -1436,10 +1437,17 @@ std::pair<int, std::vector<EqualityEdgeId>> EqualityEngine::optimalTreeSizePath(
 
         int newWeight = shortestPath(f1.d_a, f2.d_a, edgeWeights).first
                         + shortestPath(f1.d_b, f2.d_b, edgeWeights).first;
+
+        if (newWeight != edgeWeights[i] || newWeight != edgeWeights[i + 1])
+          changed = true;
+
         edgeWeights[i] = newWeight;
         edgeWeights[i + 1] = newWeight;
       }
     }
+
+    // If we hit the fixed point early, we can stop
+    if (!changed) break;
   }
 
   return shortestPath(start, end, edgeWeights);
