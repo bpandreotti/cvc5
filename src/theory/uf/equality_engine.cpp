@@ -887,7 +887,7 @@ void EqualityEngine::backtrack() {
       // Get the ids of the merged classes
       Equality& eq = d_assertedEqualities[i];
       // Undo the merge
-      if (eq.d_lhs != null_id)
+      if (eq.d_lhs != null_id && eq.d_causedMerge)
       {
         undoMerge(
             d_equalityNodes[eq.d_lhs], d_equalityNodes[eq.d_rhs], eq.d_rhs);
@@ -1990,7 +1990,8 @@ void EqualityEngine::propagate() {
     // constants, since that would break assumptions below (namely that when
     // propagating constant merging they are different and therefore we are in
     // conflict)
-    if (t1classId == t2classId) {
+    bool isRedundant = t1classId == t2classId;
+    if (isRedundant) {
       if (!options().uf.ufKeepRedundant || (d_isConstant[t1classId] && d_isConstant[t2classId])) {
         Trace("test") << "..ignoring redundant propagated equality <"
                       << t1classId << ", " << t2classId << ">\n";
@@ -2020,7 +2021,7 @@ void EqualityEngine::propagate() {
       d_done = true;
       // But in order to keep invariants (edges = 2*equalities) we put an equalities in
       // Note that we can explain this merge as we have a graph edge
-      d_assertedEqualities.push_back(Equality(null_id, null_id));
+      d_assertedEqualities.push_back(Equality(null_id, null_id, !isRedundant));
       d_assertedEqualitiesCount = d_assertedEqualitiesCount + 1;
       // Notify
       d_notify->eqNotifyConstantTermMerge(d_nodes[t1classId],
@@ -2060,7 +2061,7 @@ void EqualityEngine::propagate() {
       Trace("equality") << d_name << "::eq::propagate(): merging "
                         << d_nodes[current.d_t1Id] << " into "
                         << d_nodes[current.d_t2Id] << std::endl;
-      d_assertedEqualities.push_back(Equality(t2classId, t1classId));
+      d_assertedEqualities.push_back(Equality(t2classId, t1classId, !isRedundant));
       d_assertedEqualitiesCount = d_assertedEqualitiesCount + 1;
       if (!merge(node2, node1, triggers)) {
         d_done = true;
@@ -2069,7 +2070,7 @@ void EqualityEngine::propagate() {
       Trace("equality") << d_name << "::eq::propagate(): merging "
                         << d_nodes[current.d_t2Id] << " into "
                         << d_nodes[current.d_t1Id] << std::endl;
-      d_assertedEqualities.push_back(Equality(t1classId, t2classId));
+      d_assertedEqualities.push_back(Equality(t1classId, t2classId, !isRedundant));
       d_assertedEqualitiesCount = d_assertedEqualitiesCount + 1;
     if (!merge(node1, node2, triggers)) {
         d_done = true;

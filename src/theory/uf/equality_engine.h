@@ -360,9 +360,11 @@ class EqualityEngine : public context::ContextNotifyObj, protected EnvObj
     EqualityNodeId d_lhs;
     /** Right hand side of the equality */
     EqualityNodeId d_rhs;
+    /** Has this equality caused a merge **/
+    bool d_causedMerge;
     /** Equality constructor */
-    Equality(EqualityNodeId l = null_id, EqualityNodeId r = null_id)
-        : d_lhs(l), d_rhs(r)
+    Equality(EqualityNodeId l = null_id, EqualityNodeId r = null_id, bool causedMerge = false)
+        : d_lhs(l), d_rhs(r), d_causedMerge(causedMerge)
     {
     }
   };/* struct EqualityEngine::Equality */
