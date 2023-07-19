@@ -894,6 +894,9 @@ void EqualityEngine::backtrack() {
         undoMerge(
             d_equalityNodes[eq.d_lhs], d_equalityNodes[eq.d_rhs], eq.d_rhs);
       }
+      // Remove equality from asserted equalities set
+      d_assertedEqualityPairs.erase(std::make_pair(eq.d_lhs, eq.d_rhs));
+      d_assertedEqualityPairs.erase(std::make_pair(eq.d_rhs, eq.d_lhs));
     }
 
     d_assertedEqualities.resize(d_assertedEqualitiesCount);
@@ -2001,6 +2004,14 @@ void EqualityEngine::propagate() {
       Trace("test") << "..keep redundant propagated equality <" << t1classId
                     << ", " << t2classId << ">\n";
     }
+
+    // If we already asserted this exact equality (or its reverse), we don't add it
+    auto key = std::make_pair(t1classId, t2classId);
+    if (d_assertedEqualityPairs.find(key) != d_assertedEqualityPairs.end()) {
+      continue;
+    }
+    d_assertedEqualityPairs.insert(key);
+    d_assertedEqualityPairs.insert(std::make_pair(t2classId, t1classId));
 
     Trace("equality::internal") << d_name << "::eq::propagate(): t1: " << (d_isInternal[t1classId] ? "internal" : "proper") << std::endl;
     Trace("equality::internal") << d_name << "::eq::propagate(): t2: " << (d_isInternal[t2classId] ? "internal" : "proper") << std::endl;

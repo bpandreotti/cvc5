@@ -372,6 +372,9 @@ class EqualityEngine : public context::ContextNotifyObj, protected EnvObj
   /** The ids of the classes we have merged */
   std::vector<Equality> d_assertedEqualities;
 
+  /** A set of node pairs corresponding to the equalities that were asserted **/
+  std::set<std::pair<EqualityNodeId, EqualityNodeId>> d_assertedEqualityPairs;
+
   /** The reasons for the equalities */
 
   /**
