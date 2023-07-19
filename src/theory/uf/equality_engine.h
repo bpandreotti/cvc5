@@ -211,7 +211,7 @@ class EqualityEngine : public context::ContextNotifyObj, protected EnvObj
                        TNode t2,
                        bool polarity,
                        std::vector<TNode>& assertions,
-                       EqProof* eqp = nullptr) const;
+                       EqProof* eqp = nullptr);
 
   /**
    * Get an explanation of the predicate being true or false.
@@ -221,7 +221,7 @@ class EqualityEngine : public context::ContextNotifyObj, protected EnvObj
   void explainPredicate(TNode p,
                         bool polarity,
                         std::vector<TNode>& assertions,
-                        EqProof* eqp = nullptr) const;
+                        EqProof* eqp = nullptr);
 
   /**
    * Explain literal, add its explanation to assumptions. This method does not
@@ -230,12 +230,12 @@ class EqualityEngine : public context::ContextNotifyObj, protected EnvObj
    * moreover ensures this class is ready to explain it via areDisequal with
    * ensureProof = true.
    */
-  void explainLit(TNode lit, std::vector<TNode>& assumptions) const;
+  void explainLit(TNode lit, std::vector<TNode>& assumptions);
   /**
    * Explain literal, return the explanation as a conjunction. This method
    * relies on the above method.
    */
-  Node mkExplainLit(TNode lit) const;
+  Node mkExplainLit(TNode lit);
   //--------------------------- end explanation methods
 
   /**
@@ -422,6 +422,8 @@ class EqualityEngine : public context::ContextNotifyObj, protected EnvObj
    */
   std::string edgesToString(EqualityEdgeId edgeId) const;
 
+  std::vector<int> d_treeOptEdgeWeights;
+
   /**
    * Map from a node to its first edge in the equality graph. Edges are added to the front of the
    * list which makes the insertion/backtracking easy.
@@ -602,7 +604,7 @@ class EqualityEngine : public context::ContextNotifyObj, protected EnvObj
       const std::vector<int>& edgeWeights) const;
 
   std::pair<int, std::vector<EqualityEdgeId>> optimalTreeSizePath(
-      EqualityNodeId start, EqualityNodeId end) const;
+      EqualityNodeId start, EqualityNodeId end);
 
   /**
    * Get an explanation of the equality t1 = t2. Returns the asserted equalities
@@ -622,7 +624,7 @@ class EqualityEngine : public context::ContextNotifyObj, protected EnvObj
       EqualityNodeId t2Id,
       std::vector<TNode>& equalities,
       std::map<std::pair<EqualityNodeId, EqualityNodeId>, EqProof*>& cache,
-      EqProof* eqp) const;
+      EqProof* eqp);
 
   /**
    * Print the equality graph.

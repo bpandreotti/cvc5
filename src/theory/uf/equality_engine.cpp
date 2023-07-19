@@ -881,6 +881,8 @@ void EqualityEngine::backtrack() {
       d_propagationQueue.pop_front();
     }
 
+    d_treeOptEdgeWeights.clear();
+
     Trace("equality") << d_name << "::eq::backtrack(): nodes" << std::endl;
 
     for (int i = (int)d_assertedEqualities.size() - 1, i_end = (int)d_assertedEqualitiesCount; i >= i_end; --i) {
@@ -1101,7 +1103,7 @@ void EqualityEngine::buildEqConclusion(EqualityNodeId id1,
 
 void EqualityEngine::explainEquality(TNode t1, TNode t2, bool polarity,
                                      std::vector<TNode>& equalities,
-                                     EqProof* eqp) const {
+                                     EqProof* eqp) {
   Trace("pf::ee") << d_name << "::eq::explainEquality(" << t1 << ", " << t2
                   << ", " << (polarity ? "true" : "false") << ")"
                   << ", proof = " << (eqp ? "ON" : "OFF") << std::endl;
@@ -1266,7 +1268,7 @@ void EqualityEngine::explainEquality(TNode t1, TNode t2, bool polarity,
 
 void EqualityEngine::explainPredicate(TNode p, bool polarity,
                                       std::vector<TNode>& assertions,
-                                      EqProof* eqp) const {
+                                      EqProof* eqp) {
   Trace("equality") << d_name << "::eq::explainPredicate(" << p << ")"
                     << std::endl;
   // Must have the term
@@ -1282,7 +1284,7 @@ void EqualityEngine::explainPredicate(TNode p, bool polarity,
 }
 
 void EqualityEngine::explainLit(TNode lit,
-                                std::vector<TNode>& assumptions) const
+                                std::vector<TNode>& assumptions)
 {
   Trace("eq-exp") << "explainLit: " << lit << std::endl;
   Assert(lit.getKind() != kind::AND);
@@ -1321,7 +1323,7 @@ void EqualityEngine::explainLit(TNode lit,
   }
 }
 
-Node EqualityEngine::mkExplainLit(TNode lit) const
+Node EqualityEngine::mkExplainLit(TNode lit)
 {
   Assert(lit.getKind() != kind::AND);
   std::vector<TNode> assumptions;
@@ -1392,37 +1394,36 @@ std::pair<int, std::vector<EqualityEdgeId>> EqualityEngine::shortestPath(
 }
 
 std::pair<int, std::vector<EqualityEdgeId>> EqualityEngine::optimalTreeSizePath(
-    EqualityNodeId start, EqualityNodeId end) const
+    EqualityNodeId start, EqualityNodeId end)
 {
-  std::vector<int> edgeWeights(d_equalityEdges.size());
 
   // If the `--uf-keep-redundant` flag was not set, there will only be one path
   // between the two vertices in the e-graph anyway, so we optimize for this
   // case by doing a simple `shortestPath`
   if (!options().uf.ufKeepRedundant)
   {
+    std::vector<int> edgeWeights(d_equalityEdges.size());
     for (EqualityEdgeId i = 0; i < d_equalityEdges.size(); ++i)
-    {
       edgeWeights[i] = 1;
-    }
     return shortestPath(start, end, edgeWeights);
   }
 
-  int numCongruenceEdges = 0;
-  for (EqualityEdgeId i = 0; i < d_equalityEdges.size(); ++i)
+  for (EqualityEdgeId i = d_treeOptEdgeWeights.size(); i < d_equalityEdges.size(); i++)
   {
     if (d_equalityEdges[i].getReasonType() == MERGED_THROUGH_CONGRUENCE)
-    {
-      edgeWeights[i] = std::numeric_limits<int>::max();
-      numCongruenceEdges++;
-    }
+      d_treeOptEdgeWeights.push_back(std::numeric_limits<int>::max());
     else
-    {
-      edgeWeights[i] = 1;
-    }
+      d_treeOptEdgeWeights.push_back(1);
   }
 
-  for (int j = 0; j < numCongruenceEdges; ++j)
+  int numCongruenceEdges = 0;
+  for (EqualityEdgeId i = 0; i < d_equalityEdges.size(); i++) {
+    if (d_equalityEdges[i].getReasonType() == MERGED_THROUGH_CONGRUENCE)
+      numCongruenceEdges++;
+  }
+
+
+  for (int j = 0; j < numCongruenceEdges; j++)
   {
     bool changed = false;
     for (EqualityEdgeId i = 0; i < d_equalityEdges.size(); i += 2)
@@ -1435,14 +1436,14 @@ std::pair<int, std::vector<EqualityEdgeId>> EqualityEngine::optimalTreeSizePath(
         EqualityNodeId node2 = d_equalityEdges[i + 1].getNodeId();
         const FunctionApplication& f2 = d_applications[node2].d_original;
 
-        int newWeight = shortestPath(f1.d_a, f2.d_a, edgeWeights).first
-                        + shortestPath(f1.d_b, f2.d_b, edgeWeights).first;
+        int newWeight = shortestPath(f1.d_a, f2.d_a, d_treeOptEdgeWeights).first
+                        + shortestPath(f1.d_b, f2.d_b, d_treeOptEdgeWeights).first;
 
-        if (newWeight != edgeWeights[i] || newWeight != edgeWeights[i + 1])
+        if (newWeight != d_treeOptEdgeWeights[i] || newWeight != d_treeOptEdgeWeights[i + 1])
           changed = true;
 
-        edgeWeights[i] = newWeight;
-        edgeWeights[i + 1] = newWeight;
+        d_treeOptEdgeWeights[i] = newWeight;
+        d_treeOptEdgeWeights[i + 1] = newWeight;
       }
     }
 
@@ -1450,7 +1451,7 @@ std::pair<int, std::vector<EqualityEdgeId>> EqualityEngine::optimalTreeSizePath(
     if (!changed) break;
   }
 
-  return shortestPath(start, end, edgeWeights);
+  return shortestPath(start, end, d_treeOptEdgeWeights);
 }
 
 void EqualityEngine::getExplanation(
@@ -1458,7 +1459,7 @@ void EqualityEngine::getExplanation(
     EqualityNodeId t2Id,
     std::vector<TNode>& equalities,
     std::map<std::pair<EqualityNodeId, EqualityNodeId>, EqProof*>& cache,
-    EqProof* eqp) const
+    EqProof* eqp)
 {
   Trace("eq-exp") << d_name << "::eq::getExplanation({" << t1Id << "} "
                   << d_nodes[t1Id] << ", {" << t2Id << "} " << d_nodes[t2Id]
