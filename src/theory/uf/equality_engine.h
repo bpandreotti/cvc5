@@ -391,14 +391,15 @@ class EqualityEngine : public context::ContextNotifyObj, protected EnvObj
     unsigned d_mergeType;
     // Reason of this equality
     TNode d_reason;
-
+    // Is this equality edge redundant
+    bool d_isRedundant;
   public:
 
     EqualityEdge():
-      d_nodeId(null_edge), d_nextId(null_edge), d_mergeType(MERGED_THROUGH_CONGRUENCE) {}
+      d_nodeId(null_edge), d_nextId(null_edge), d_mergeType(MERGED_THROUGH_CONGRUENCE), d_isRedundant(false) {}
 
-    EqualityEdge(EqualityNodeId nodeId, EqualityNodeId nextId, unsigned type, TNode reason):
-      d_nodeId(nodeId), d_nextId(nextId), d_mergeType(type), d_reason(reason) {}
+    EqualityEdge(EqualityNodeId nodeId, EqualityNodeId nextId, unsigned type, TNode reason, bool isRedundant):
+      d_nodeId(nodeId), d_nextId(nextId), d_mergeType(type), d_reason(reason), d_isRedundant(isRedundant) {}
 
     /** Returns the id of the next edge */
     EqualityEdgeId getNext() const { return d_nextId; }
@@ -411,6 +412,9 @@ class EqualityEngine : public context::ContextNotifyObj, protected EnvObj
 
     /** The reason of this edge */
     TNode getReason() const { return d_reason; }
+
+    /** Is this equality edge redundant */
+    bool isRedundant() const { return d_isRedundant; }
   };/* class EqualityEngine::EqualityEdge */
 
   /**
@@ -434,7 +438,7 @@ class EqualityEngine : public context::ContextNotifyObj, protected EnvObj
   std::vector<EqualityEdgeId> d_equalityGraph;
 
   /** Add an edge to the equality graph */
-  void addGraphEdge(EqualityNodeId t1, EqualityNodeId t2, unsigned type, TNode reason);
+  void addGraphEdge(EqualityNodeId t1, EqualityNodeId t2, unsigned type, TNode reason, bool isRedundant);
 
   /** Returns the equality node of the given node */
   EqualityNode& getEqualityNode(TNode node);
@@ -608,6 +612,8 @@ class EqualityEngine : public context::ContextNotifyObj, protected EnvObj
 
   std::pair<int, std::vector<EqualityEdgeId>> optimalTreeSizePath(
       EqualityNodeId start, EqualityNodeId end);
+
+  int estimateTreeSize(EqualityNodeId start, EqualityNodeId end);
 
   /**
    * Get an explanation of the equality t1 = t2. Returns the asserted equalities

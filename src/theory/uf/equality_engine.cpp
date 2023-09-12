@@ -17,6 +17,7 @@
  */
 
 #include "theory/uf/equality_engine.h"
+#include <limits>
 
 #include "base/output.h"
 #include "options/smt_options.h"
@@ -992,13 +993,13 @@ void EqualityEngine::backtrack() {
 
 }
 
-void EqualityEngine::addGraphEdge(EqualityNodeId t1, EqualityNodeId t2, unsigned type, TNode reason) {
+void EqualityEngine::addGraphEdge(EqualityNodeId t1, EqualityNodeId t2, unsigned type, TNode reason, bool isRedundant) {
   Trace("equality") << d_name << "::eq::addGraphEdge({" << t1 << "} "
                     << d_nodes[t1] << ", {" << t2 << "} " << d_nodes[t2] << ","
                     << reason << ")" << std::endl;
   EqualityEdgeId edge = d_equalityEdges.size();
-  d_equalityEdges.push_back(EqualityEdge(t2, d_equalityGraph[t1], type, reason));
-  d_equalityEdges.push_back(EqualityEdge(t1, d_equalityGraph[t2], type, reason));
+  d_equalityEdges.push_back(EqualityEdge(t2, d_equalityGraph[t1], type, reason, isRedundant));
+  d_equalityEdges.push_back(EqualityEdge(t1, d_equalityGraph[t2], type, reason, isRedundant));
   d_equalityGraph[t1] = edge;
   d_equalityGraph[t2] = edge | 1;
 
@@ -1455,6 +1456,18 @@ std::pair<int, std::vector<EqualityEdgeId>> EqualityEngine::optimalTreeSizePath(
   }
 
   return shortestPath(start, end, d_treeOptEdgeWeights);
+}
+
+int EqualityEngine::estimateTreeSize(EqualityNodeId start, EqualityNodeId end) {
+    std::vector<int> edgeWeights(d_equalityEdges.size());
+    for (EqualityEdgeId i = 0; i < d_equalityEdges.size(); ++i) {
+      if (d_equalityEdges[i].isRedundant()) {
+        edgeWeights[i] = std::numeric_limits<int>::max();
+      } else {
+        edgeWeights[i] = 1;
+      }
+    }
+    return shortestPath(start, end, edgeWeights).first;
 }
 
 void EqualityEngine::getExplanation(
@@ -2025,7 +2038,7 @@ void EqualityEngine::propagate() {
 
     // Add the actual equality to the equality graph
     addGraphEdge(
-        current.d_t1Id, current.d_t2Id, current.d_type, current.d_reason);
+        current.d_t1Id, current.d_t2Id, current.d_type, current.d_reason, isRedundant);
 
     // If constants are being merged we're done
     if (d_isConstant[t1classId] && d_isConstant[t2classId]) {
