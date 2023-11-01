@@ -550,6 +550,9 @@ void ProofEqEngine::explainWithProof(Node lit,
   // add the steps in the equality engine proof to the Proof
   pf->addToProof(curr);
   Trace("pfee-proof") << "pfee::explainWithProof: finished" << std::endl;
+  Trace("test") << "pfee::explainWithProof: finished [lit " << lit
+                << ", pf size " << curr->getNumProofNodes() << "]"
+                << std::endl;
 }
 
 }  // namespace eq

@@ -635,6 +635,14 @@ class EqualityEngine : public context::ContextNotifyObj, protected EnvObj
       std::map<std::pair<EqualityNodeId, EqualityNodeId>, EqProof*>& cache,
       EqProof* eqp);
 
+  void getExplanationGreedy(
+      EqualityNodeId t1Id,
+      EqualityNodeId t2Id,
+      const std::vector<int>& proofSizeEstimates,
+      std::vector<TNode>& equalities,
+      std::map<std::pair<EqualityNodeId, EqualityNodeId>, EqProof*>& cache,
+      EqProof* eqp);
+
   /**
    * Print the equality graph.
    */

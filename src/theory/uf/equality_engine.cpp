@@ -1477,6 +1477,31 @@ void EqualityEngine::getExplanation(
     std::map<std::pair<EqualityNodeId, EqualityNodeId>, EqProof*>& cache,
     EqProof* eqp)
 {
+  std::vector<int> proofSizeEstimates(d_equalityEdges.size());
+  for (EqualityEdgeId i = 0; i < d_equalityEdges.size(); i++)
+  {
+    if (i % 2 == 1) {
+      proofSizeEstimates[i] = proofSizeEstimates[i - 1];
+    } else if (d_equalityEdges[i].getReasonType() == MERGED_THROUGH_CONGRUENCE) {
+      FunctionApplication f1 = d_applications[d_equalityEdges[i].getNodeId()].d_original;
+      FunctionApplication f2 = d_applications[d_equalityEdges[i + 1].getNodeId()].d_original;
+      proofSizeEstimates[i] = estimateTreeSize(f1.d_a, f2.d_a) + estimateTreeSize(f1.d_b, f2.d_b);
+    } else {
+      proofSizeEstimates[i] = 1;
+    }
+  }
+
+  getExplanationGreedy(t1Id, t2Id, proofSizeEstimates, equalities, cache, eqp);
+}
+
+void EqualityEngine::getExplanationGreedy(
+    EqualityNodeId t1Id,
+    EqualityNodeId t2Id,
+    const std::vector<int>& proofSizeEstimates,
+    std::vector<TNode>& equalities,
+    std::map<std::pair<EqualityNodeId, EqualityNodeId>, EqProof*>& cache,
+    EqProof* eqp)
+{
   Trace("eq-exp") << d_name << "::eq::getExplanation({" << t1Id << "} "
                   << d_nodes[t1Id] << ", {" << t2Id << "} " << d_nodes[t2Id]
                   << ") size = " << cache.size() << std::endl;
@@ -1562,8 +1587,7 @@ void EqualityEngine::getExplanation(
     return;
   }
 
-  std::vector<EqualityEdgeId> traversed =
-      optimalTreeSizePath(t1Id, t2Id).second;
+  std::vector<EqualityEdgeId> path = shortestPath(t1Id, t2Id, proofSizeEstimates).second;
 
   Trace("equality") << d_name << "::eq::getExplanation(): path found: " << std::endl;
 
@@ -1571,7 +1595,7 @@ void EqualityEngine::getExplanation(
 
   // Reconstruct the path
   EqualityNodeId currentNode = t2Id;
-  EqualityEdgeId currentEdgeId = traversed[currentNode];
+  EqualityEdgeId currentEdgeId = path[currentNode];
   do {
     EqualityNodeId edgeNode = currentNode;
     currentNode = d_equalityEdges[currentEdgeId ^ 1].getNodeId();
@@ -1622,11 +1646,11 @@ void EqualityEngine::getExplanation(
       Trace("equality") << "Explaining left hand side equalities" << std::endl;
       std::shared_ptr<EqProof> eqpc1 =
           eqpc ? std::make_shared<EqProof>() : nullptr;
-      getExplanation(f1.d_a, f2.d_a, equalities, cache, eqpc1.get());
+      getExplanationGreedy(f1.d_a, f2.d_a, proofSizeEstimates, equalities, cache, eqpc1.get());
       Trace("equality") << "Explaining right hand side equalities" << std::endl;
       std::shared_ptr<EqProof> eqpc2 =
           eqpc ? std::make_shared<EqProof>() : nullptr;
-      getExplanation(f1.d_b, f2.d_b, equalities, cache, eqpc2.get());
+      getExplanationGreedy(f1.d_b, f2.d_b, proofSizeEstimates, equalities, cache, eqpc2.get());
       if (eqpc)
       {
         eqpc->d_children.push_back(eqpc1);
@@ -1663,7 +1687,7 @@ void EqualityEngine::getExplanation(
       Trace("equality") << push;
       std::shared_ptr<EqProof> eqpc1 =
           eqpc ? std::make_shared<EqProof>() : nullptr;
-      getExplanation(eq.d_a, eq.d_b, equalities, cache, eqpc1.get());
+      getExplanationGreedy(eq.d_a, eq.d_b, proofSizeEstimates, equalities, cache, eqpc1.get());
       if( eqpc ){
         eqpc->d_children.push_back( eqpc1 );
       }
@@ -1706,11 +1730,12 @@ void EqualityEngine::getExplanation(
         Assert(isConstant(childId));
         std::shared_ptr<EqProof> eqpcc =
             eqpc ? std::make_shared<EqProof>() : nullptr;
-        getExplanation(childId,
-                       getEqualityNode(childId).getFind(),
-                       equalities,
-                       cache,
-                       eqpcc.get());
+          getExplanationGreedy(childId,
+                               getEqualityNode(childId).getFind(),
+                               proofSizeEstimates,
+                               equalities,
+                               cache,
+                               eqpcc.get());
         if( eqpc ) {
           eqpc->d_children.push_back( eqpcc );
           if (TraceIsOn("pf::ee"))
@@ -1764,7 +1789,7 @@ void EqualityEngine::getExplanation(
     }
 
     // Go to the previous
-    currentEdgeId = traversed[currentNode];
+    currentEdgeId = path[currentNode];
 
     //---from Morgan---
     if (eqpc != NULL && eqpc->d_id == MERGED_THROUGH_REFLEXIVITY) {
@@ -2011,11 +2036,11 @@ void EqualityEngine::propagate() {
     if (isRedundant) {
       if (!options().uf.ufKeepRedundant || (d_isConstant[t1classId] && d_isConstant[t2classId])) {
         Trace("test") << "..ignoring redundant propagated equality <"
-                      << t1classId << ", " << t2classId << ">\n";
+                      << current.d_t1Id << ", " << current.d_t1Id << ">\n";
         continue;
       }
-      Trace("test") << "..keep redundant propagated equality <" << t1classId
-                    << ", " << t2classId << ">\n";
+      Trace("test") << "..keep redundant propagated equality <" << current.d_t1Id
+                    << ", " << current.d_t2Id << ">\n";
     }
 
     // If we already asserted this exact equality (or its reverse), we don't add it
