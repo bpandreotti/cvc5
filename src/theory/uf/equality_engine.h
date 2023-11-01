@@ -610,6 +610,9 @@ class EqualityEngine : public context::ContextNotifyObj, protected EnvObj
       EqualityNodeId end,
       const std::vector<int>& edgeWeights) const;
 
+  std::vector<EqualityEdgeId> shortestTreePath(EqualityNodeId start,
+                                               EqualityNodeId end) const;
+
   std::pair<int, std::vector<EqualityEdgeId>> optimalTreeSizePath(
       EqualityNodeId start, EqualityNodeId end);
 
@@ -638,6 +641,7 @@ class EqualityEngine : public context::ContextNotifyObj, protected EnvObj
   void getExplanationGreedy(
       EqualityNodeId t1Id,
       EqualityNodeId t2Id,
+      int fuel,
       const std::vector<int>& proofSizeEstimates,
       std::vector<TNode>& equalities,
       std::map<std::pair<EqualityNodeId, EqualityNodeId>, EqProof*>& cache,

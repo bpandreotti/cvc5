@@ -1397,6 +1397,17 @@ std::pair<int, std::vector<EqualityEdgeId>> EqualityEngine::shortestPath(
   return std::make_pair(distFromStart[end], traversed);
 }
 
+std::vector<EqualityEdgeId> EqualityEngine::shortestTreePath(
+    EqualityNodeId start, EqualityNodeId end) const
+{
+    std::vector<int> edgeWeights(d_equalityEdges.size());
+    for (EqualityEdgeId i = 0; i < d_equalityEdges.size(); i++)
+    {
+      edgeWeights[i] = d_equalityEdges[i].isRedundant() ? std::numeric_limits<int>::max() : 1;
+    }
+    return shortestPath(start, end, edgeWeights).second;
+}
+
 std::pair<int, std::vector<EqualityEdgeId>> EqualityEngine::optimalTreeSizePath(
     EqualityNodeId start, EqualityNodeId end)
 {
@@ -1477,6 +1488,9 @@ void EqualityEngine::getExplanation(
     std::map<std::pair<EqualityNodeId, EqualityNodeId>, EqProof*>& cache,
     EqProof* eqp)
 {
+  if (!options().uf.ufKeepRedundant)
+    return getExplanationGreedy(t1Id, t2Id, 0, std::vector<int>(), equalities, cache, eqp);
+
   std::vector<int> proofSizeEstimates(d_equalityEdges.size());
   for (EqualityEdgeId i = 0; i < d_equalityEdges.size(); i++)
   {
@@ -1491,12 +1505,14 @@ void EqualityEngine::getExplanation(
     }
   }
 
-  getExplanationGreedy(t1Id, t2Id, proofSizeEstimates, equalities, cache, eqp);
+  getExplanationGreedy(
+      t1Id, t2Id, 10, proofSizeEstimates, equalities, cache, eqp);
 }
 
 void EqualityEngine::getExplanationGreedy(
     EqualityNodeId t1Id,
     EqualityNodeId t2Id,
+    int fuel,
     const std::vector<int>& proofSizeEstimates,
     std::vector<TNode>& equalities,
     std::map<std::pair<EqualityNodeId, EqualityNodeId>, EqProof*>& cache,
@@ -1587,7 +1603,9 @@ void EqualityEngine::getExplanationGreedy(
     return;
   }
 
-  std::vector<EqualityEdgeId> path = shortestPath(t1Id, t2Id, proofSizeEstimates).second;
+  std::vector<EqualityEdgeId> path =
+      fuel > 0 ? shortestPath(t1Id, t2Id, proofSizeEstimates).second
+               : shortestTreePath(t1Id, t2Id);
 
   Trace("equality") << d_name << "::eq::getExplanation(): path found: " << std::endl;
 
@@ -1646,11 +1664,23 @@ void EqualityEngine::getExplanationGreedy(
       Trace("equality") << "Explaining left hand side equalities" << std::endl;
       std::shared_ptr<EqProof> eqpc1 =
           eqpc ? std::make_shared<EqProof>() : nullptr;
-      getExplanationGreedy(f1.d_a, f2.d_a, proofSizeEstimates, equalities, cache, eqpc1.get());
+      getExplanationGreedy(f1.d_a,
+                           f2.d_a,
+                           fuel - 1,
+                           proofSizeEstimates,
+                           equalities,
+                           cache,
+                           eqpc1.get());
       Trace("equality") << "Explaining right hand side equalities" << std::endl;
       std::shared_ptr<EqProof> eqpc2 =
           eqpc ? std::make_shared<EqProof>() : nullptr;
-      getExplanationGreedy(f1.d_b, f2.d_b, proofSizeEstimates, equalities, cache, eqpc2.get());
+      getExplanationGreedy(f1.d_b,
+                           f2.d_b,
+                           fuel - 1,
+                           proofSizeEstimates,
+                           equalities,
+                           cache,
+                           eqpc2.get());
       if (eqpc)
       {
         eqpc->d_children.push_back(eqpc1);
@@ -1687,7 +1717,13 @@ void EqualityEngine::getExplanationGreedy(
       Trace("equality") << push;
       std::shared_ptr<EqProof> eqpc1 =
           eqpc ? std::make_shared<EqProof>() : nullptr;
-      getExplanationGreedy(eq.d_a, eq.d_b, proofSizeEstimates, equalities, cache, eqpc1.get());
+      getExplanationGreedy(eq.d_a,
+                           eq.d_b,
+                           fuel,
+                           proofSizeEstimates,
+                           equalities,
+                           cache,
+                           eqpc1.get());
       if( eqpc ){
         eqpc->d_children.push_back( eqpc1 );
       }
@@ -1730,12 +1766,13 @@ void EqualityEngine::getExplanationGreedy(
         Assert(isConstant(childId));
         std::shared_ptr<EqProof> eqpcc =
             eqpc ? std::make_shared<EqProof>() : nullptr;
-          getExplanationGreedy(childId,
-                               getEqualityNode(childId).getFind(),
-                               proofSizeEstimates,
-                               equalities,
-                               cache,
-                               eqpcc.get());
+        getExplanationGreedy(childId,
+                             getEqualityNode(childId).getFind(),
+                             fuel - 1,
+                             proofSizeEstimates,
+                             equalities,
+                             cache,
+                             eqpcc.get());
         if( eqpc ) {
           eqpc->d_children.push_back( eqpcc );
           if (TraceIsOn("pf::ee"))
