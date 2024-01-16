@@ -200,6 +200,13 @@ class EqualityEngine : public context::ContextNotifyObj, protected EnvObj
                       TNode reason,
                       unsigned pid = MERGED_THROUGH_EQUALITY);
 
+  enum class ExplainAlgorithm
+  {
+    Vanilla,
+    TreeOpt,
+    Greedy,
+  };
+
   //--------------------end updates
   //--------------------------- explanation methods
   /**
@@ -211,7 +218,8 @@ class EqualityEngine : public context::ContextNotifyObj, protected EnvObj
                        TNode t2,
                        bool polarity,
                        std::vector<TNode>& assertions,
-                       EqProof* eqp = nullptr);
+                       EqProof* eqp = nullptr,
+                       ExplainAlgorithm algo = ExplainAlgorithm::Greedy);
 
   /**
    * Get an explanation of the predicate being true or false.
@@ -221,7 +229,8 @@ class EqualityEngine : public context::ContextNotifyObj, protected EnvObj
   void explainPredicate(TNode p,
                         bool polarity,
                         std::vector<TNode>& assertions,
-                        EqProof* eqp = nullptr);
+                        EqProof* eqp = nullptr,
+                        ExplainAlgorithm algo = ExplainAlgorithm::Greedy);
 
   /**
    * Explain literal, add its explanation to assumptions. This method does not
@@ -636,7 +645,8 @@ class EqualityEngine : public context::ContextNotifyObj, protected EnvObj
       EqualityNodeId t2Id,
       std::vector<TNode>& equalities,
       std::map<std::pair<EqualityNodeId, EqualityNodeId>, EqProof*>& cache,
-      EqProof* eqp);
+      EqProof* eqp,
+      ExplainAlgorithm algo);
 
   void getExplanationGreedy(
       EqualityNodeId t1Id,

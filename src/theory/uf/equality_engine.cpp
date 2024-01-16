@@ -1105,9 +1105,13 @@ void EqualityEngine::buildEqConclusion(EqualityNodeId id1,
   Trace("equality") << "buildEqConclusion: Did not build equality\n";
 }
 
-void EqualityEngine::explainEquality(TNode t1, TNode t2, bool polarity,
+void EqualityEngine::explainEquality(TNode t1,
+                                     TNode t2,
+                                     bool polarity,
                                      std::vector<TNode>& equalities,
-                                     EqProof* eqp) {
+                                     EqProof* eqp,
+                                     ExplainAlgorithm algo)
+{
   Trace("pf::ee") << d_name << "::eq::explainEquality(" << t1 << ", " << t2
                   << ", " << (polarity ? "true" : "false") << ")"
                   << ", proof = " << (eqp ? "ON" : "OFF") << std::endl;
@@ -1129,7 +1133,7 @@ void EqualityEngine::explainEquality(TNode t1, TNode t2, bool polarity,
   std::map<std::pair<EqualityNodeId, EqualityNodeId>, EqProof*> cache;
   if (polarity) {
     // Get the explanation
-    getExplanation(t1Id, t2Id, equalities, cache, eqp);
+    getExplanation(t1Id, t2Id, equalities, cache, eqp, algo);
   } else {
     if (eqp) {
       eqp->d_id = MERGED_THROUGH_TRANS;
@@ -1160,8 +1164,12 @@ void EqualityEngine::explainEquality(TNode t1, TNode t2, bool polarity,
                         << std::endl;
       }
 
-      getExplanation(
-          toExplain.first, toExplain.second, equalities, cache, eqpc.get());
+      getExplanation(toExplain.first,
+                     toExplain.second,
+                     equalities,
+                     cache,
+                     eqpc.get(),
+                     algo);
 
       if (eqpc) {
         if (TraceIsOn("pf::ee"))
@@ -1270,9 +1278,12 @@ void EqualityEngine::explainEquality(TNode t1, TNode t2, bool polarity,
   }
 }
 
-void EqualityEngine::explainPredicate(TNode p, bool polarity,
+void EqualityEngine::explainPredicate(TNode p,
+                                      bool polarity,
                                       std::vector<TNode>& assertions,
-                                      EqProof* eqp) {
+                                      EqProof* eqp,
+                                      ExplainAlgorithm algo)
+{
   Trace("equality") << d_name << "::eq::explainPredicate(" << p << ")"
                     << std::endl;
   // Must have the term
@@ -1283,8 +1294,12 @@ void EqualityEngine::explainPredicate(TNode p, bool polarity,
     debugPrintGraph();
   }
   // Get the explanation
-  getExplanation(
-      getNodeId(p), polarity ? d_trueId : d_falseId, assertions, cache, eqp);
+  getExplanation(getNodeId(p),
+                 polarity ? d_trueId : d_falseId,
+                 assertions,
+                 cache,
+                 eqp,
+                 algo);
 }
 
 void EqualityEngine::explainLit(TNode lit,
@@ -1486,10 +1501,13 @@ void EqualityEngine::getExplanation(
     EqualityNodeId t2Id,
     std::vector<TNode>& equalities,
     std::map<std::pair<EqualityNodeId, EqualityNodeId>, EqProof*>& cache,
-    EqProof* eqp)
+    EqProof* eqp,
+    ExplainAlgorithm algo)
 {
-  if (!options().uf.ufKeepRedundant)
+  if (!options().uf.ufKeepRedundant || algo == ExplainAlgorithm::Vanilla)
     return getExplanationGreedy(t1Id, t2Id, 0, std::vector<int>(), equalities, cache, eqp);
+
+  // TODO: call TreeOpt algorithm if algo is ExplainAlgorithm::TreeOpt
 
   std::vector<int> proofSizeEstimates(d_equalityEdges.size());
   for (EqualityEdgeId i = 0; i < d_equalityEdges.size(); i++)
