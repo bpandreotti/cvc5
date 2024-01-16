@@ -648,10 +648,11 @@ class EqualityEngine : public context::ContextNotifyObj, protected EnvObj
       EqProof* eqp,
       ExplainAlgorithm algo);
 
-  void getExplanationGreedy(
+  void getExplanationImpl(
       EqualityNodeId t1Id,
       EqualityNodeId t2Id,
       int fuel,
+      bool useTreeOpt,
       const std::vector<int>& proofSizeEstimates,
       std::vector<TNode>& equalities,
       std::map<std::pair<EqualityNodeId, EqualityNodeId>, EqProof*>& cache,
