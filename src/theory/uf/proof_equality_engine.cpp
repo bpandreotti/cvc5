@@ -531,7 +531,8 @@ void ProofEqEngine::explainWithProof(Node lit,
       d_ee.explainEquality(atom[0], atom[1], polarity, tassumps, &greedyPf, EqualityEngine::ExplainAlgorithm::Greedy);
       auto treeOptPf = eq::EqProof();
       d_ee.explainEquality(atom[0], atom[1], polarity, tassumps, &treeOptPf, EqualityEngine::ExplainAlgorithm::TreeOpt);
-      std::cerr << getEqProofSize(d_env, *pf.get()) << ","
+      Trace("cc-experiments") << "proof sizes: "
+                << getEqProofSize(d_env, *pf.get()) << ","
                 << getEqProofSize(d_env, greedyPf) << ","
                 << getEqProofSize(d_env, treeOptPf) << std::endl;
     } else {
@@ -547,7 +548,8 @@ void ProofEqEngine::explainWithProof(Node lit,
       d_ee.explainPredicate(atom, polarity, tassumps, &greedyPf, EqualityEngine::ExplainAlgorithm::Greedy);
       auto treeOptPf = eq::EqProof();
       d_ee.explainPredicate(atom, polarity, tassumps, &treeOptPf, EqualityEngine::ExplainAlgorithm::TreeOpt);
-      std::cout << getEqProofSize(d_env, *pf.get()) << ","
+      Trace("cc-experiments") << "proof sizes: "
+                << getEqProofSize(d_env, *pf.get()) << ","
                 << getEqProofSize(d_env, greedyPf) << ","
                 << getEqProofSize(d_env, treeOptPf) << std::endl;
     } else {
