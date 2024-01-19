@@ -15,6 +15,7 @@
 
 #include "theory/uf/proof_equality_engine.h"
 
+#include "options/uf_options.h"
 #include "proof/lazy_proof_chain.h"
 #include "proof/proof_node.h"
 #include "proof/proof_node_manager.h"
@@ -491,6 +492,12 @@ bool ProofEqEngine::holds(TNode atom, bool polarity)
   return d_ee.areEqual(atom, b);
 }
 
+size_t getEqProofSize(Env& env, eq::EqProof& proof) {
+  LazyCDProof tmpProof(env);
+  proof.addToProof(&tmpProof);
+  return tmpProof.getNumProofNodes();
+}
+
 void ProofEqEngine::explainWithProof(Node lit,
                                      std::vector<TNode>& assumps,
                                      LazyCDProof* curr)
@@ -518,12 +525,34 @@ void ProofEqEngine::explainWithProof(Node lit,
       // ensure the explanation exists
       AlwaysAssert(d_ee.areDisequal(atom[0], atom[1], true));
     }
-    d_ee.explainEquality(atom[0], atom[1], polarity, tassumps, pf.get());
+    if (options().uf.ufRunExperiments) {
+      d_ee.explainEquality(atom[0], atom[1], polarity, tassumps, pf.get(), EqualityEngine::ExplainAlgorithm::Vanilla);
+      auto greedyPf = eq::EqProof();
+      d_ee.explainEquality(atom[0], atom[1], polarity, tassumps, &greedyPf, EqualityEngine::ExplainAlgorithm::Greedy);
+      auto treeOptPf = eq::EqProof();
+      d_ee.explainEquality(atom[0], atom[1], polarity, tassumps, &treeOptPf, EqualityEngine::ExplainAlgorithm::TreeOpt);
+      std::cerr << getEqProofSize(d_env, *pf.get()) << ","
+                << getEqProofSize(d_env, greedyPf) << ","
+                << getEqProofSize(d_env, treeOptPf) << std::endl;
+    } else {
+      d_ee.explainEquality(atom[0], atom[1], polarity, tassumps, pf.get());
+    }
   }
   else
   {
     Assert(d_ee.hasTerm(atom));
-    d_ee.explainPredicate(atom, polarity, tassumps, pf.get());
+    if (options().uf.ufRunExperiments) {
+      d_ee.explainPredicate(atom, polarity, tassumps, pf.get(), EqualityEngine::ExplainAlgorithm::Vanilla);
+      auto greedyPf = eq::EqProof();
+      d_ee.explainPredicate(atom, polarity, tassumps, &greedyPf, EqualityEngine::ExplainAlgorithm::Greedy);
+      auto treeOptPf = eq::EqProof();
+      d_ee.explainPredicate(atom, polarity, tassumps, &treeOptPf, EqualityEngine::ExplainAlgorithm::TreeOpt);
+      std::cout << getEqProofSize(d_env, *pf.get()) << ","
+                << getEqProofSize(d_env, greedyPf) << ","
+                << getEqProofSize(d_env, treeOptPf) << std::endl;
+    } else {
+      d_ee.explainPredicate(atom, polarity, tassumps, pf.get());
+    }
   }
   Trace("pfee-proof") << "...got " << tassumps << std::endl;
   // avoid duplicates

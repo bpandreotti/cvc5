@@ -82,3 +82,11 @@ name   = "Uninterpreted Functions Theory"
   type       = "bool"
   default    = "false"
   help       = "keep redundant equalities in congruence closure"
+
+[[option]]
+  name       = "ufRunExperiments"
+  category   = "undocumented"
+  long       = "uf-run-experiments"
+  type       = "bool"
+  default    = "false"
+  help       = "run congruence closure experiments"
