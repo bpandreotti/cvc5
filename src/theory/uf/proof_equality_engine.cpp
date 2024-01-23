@@ -506,6 +506,19 @@ void ProofEqEngine::explainWithProof(Node lit,
   {
     return;
   }
+  EqualityEngine::ExplainAlgorithm explainAlgo;
+  switch (options().uf.ufAlgorithmMode) {
+    case options::UfAlgorithmMode::VANILLA:
+      explainAlgo = EqualityEngine::ExplainAlgorithm::Vanilla;
+      break;
+    case options::UfAlgorithmMode::TREE_OPT:
+      explainAlgo = EqualityEngine::ExplainAlgorithm::TreeOpt;
+      break;
+    default:
+      explainAlgo = EqualityEngine::ExplainAlgorithm::Greedy;
+      break;
+  }
+
   std::shared_ptr<eq::EqProof> pf = std::make_shared<eq::EqProof>();
   Trace("pfee-proof") << "pfee::explainWithProof: " << lit << std::endl;
   bool polarity = lit.getKind() != NOT;
@@ -536,7 +549,7 @@ void ProofEqEngine::explainWithProof(Node lit,
                 << getEqProofSize(d_env, greedyPf) << ","
                 << getEqProofSize(d_env, treeOptPf) << std::endl;
     } else {
-      d_ee.explainEquality(atom[0], atom[1], polarity, tassumps, pf.get());
+      d_ee.explainEquality(atom[0], atom[1], polarity, tassumps, pf.get(), explainAlgo);
     }
   }
   else
@@ -553,7 +566,7 @@ void ProofEqEngine::explainWithProof(Node lit,
                 << getEqProofSize(d_env, greedyPf) << ","
                 << getEqProofSize(d_env, treeOptPf) << std::endl;
     } else {
-      d_ee.explainPredicate(atom, polarity, tassumps, pf.get());
+      d_ee.explainPredicate(atom, polarity, tassumps, pf.get(), explainAlgo);
     }
   }
   Trace("pfee-proof") << "...got " << tassumps << std::endl;
