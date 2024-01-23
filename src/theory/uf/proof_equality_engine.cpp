@@ -550,6 +550,7 @@ void ProofEqEngine::explainWithProof(Node lit,
                 << getEqProofSize(d_env, treeOptPf) << std::endl;
     } else {
       d_ee.explainEquality(atom[0], atom[1], polarity, tassumps, pf.get(), explainAlgo);
+      Trace("cc-experiments") << "proof sizes: " << getEqProofSize(d_env, *pf.get()) << std::endl;
     }
   }
   else
@@ -567,6 +568,7 @@ void ProofEqEngine::explainWithProof(Node lit,
                 << getEqProofSize(d_env, treeOptPf) << std::endl;
     } else {
       d_ee.explainPredicate(atom, polarity, tassumps, pf.get(), explainAlgo);
+      Trace("cc-experiments") << "proof sizes: " << getEqProofSize(d_env, *pf.get()) << std::endl;
     }
   }
   Trace("pfee-proof") << "...got " << tassumps << std::endl;
