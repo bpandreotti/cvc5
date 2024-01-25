@@ -518,6 +518,7 @@ void ProofEqEngine::explainWithProof(Node lit,
       explainAlgo = EqualityEngine::ExplainAlgorithm::Greedy;
       break;
   }
+  bool isRunningExperiment = options().uf.ufAlgorithmMode == options::UfAlgorithmMode::ALL;
 
   std::shared_ptr<eq::EqProof> pf = std::make_shared<eq::EqProof>();
   Trace("pfee-proof") << "pfee::explainWithProof: " << lit << std::endl;
@@ -538,7 +539,7 @@ void ProofEqEngine::explainWithProof(Node lit,
       // ensure the explanation exists
       AlwaysAssert(d_ee.areDisequal(atom[0], atom[1], true));
     }
-    if (options().uf.ufRunExperiments) {
+    if (isRunningExperiment) {
       d_ee.explainEquality(atom[0], atom[1], polarity, tassumps, pf.get(), EqualityEngine::ExplainAlgorithm::Vanilla);
       auto greedyPf = eq::EqProof();
       d_ee.explainEquality(atom[0], atom[1], polarity, tassumps, &greedyPf, EqualityEngine::ExplainAlgorithm::Greedy);
@@ -556,7 +557,7 @@ void ProofEqEngine::explainWithProof(Node lit,
   else
   {
     Assert(d_ee.hasTerm(atom));
-    if (options().uf.ufRunExperiments) {
+    if (isRunningExperiment) {
       d_ee.explainPredicate(atom, polarity, tassumps, pf.get(), EqualityEngine::ExplainAlgorithm::Vanilla);
       auto greedyPf = eq::EqProof();
       d_ee.explainPredicate(atom, polarity, tassumps, &greedyPf, EqualityEngine::ExplainAlgorithm::Greedy);

@@ -76,22 +76,6 @@ name   = "Uninterpreted Functions Theory"
   help       = "eagerly expand bit-vector to arithmetic conversions during preprocessing"
 
 [[option]]
-  name       = "ufKeepRedundant"
-  category   = "undocumented"
-  long       = "uf-keep-redundant"
-  type       = "bool"
-  default    = "false"
-  help       = "keep redundant equalities in congruence closure"
-
-[[option]]
-  name       = "ufRunExperiments"
-  category   = "undocumented"
-  long       = "uf-run-experiments"
-  type       = "bool"
-  default    = "false"
-  help       = "run congruence closure experiments"
-
-[[option]]
   name       = "ufAlgorithmMode"
   category   = "undocumented"
   long       = "uf-algo=MODE"
@@ -108,3 +92,6 @@ name   = "Uninterpreted Functions Theory"
 [[option.mode.GREEDY]]
   name = "greedy"
   help = "Greedy algorithm."
+[[option.mode.ALL]]
+  name = "all"
+  help = "Use all three algorithms, and print the proof sizes for each of them."

@@ -504,7 +504,7 @@ bool EqualityEngine::assertEquality(TNode eq,
   if (polarity) {
     // If two terms are already equal, don't assert anything
     if (hasTerm(eq[0]) && hasTerm(eq[1]) && areEqual(eq[0], eq[1])) {
-      if (options().uf.ufKeepRedundant) {
+      if (keepRedundantEqualities()) {
         Trace("test") << "redundant equality added: " << eq << std::endl;
       } else {
         Trace("test") << "redundant equality ignored: " << eq << std::endl;
@@ -1363,6 +1363,10 @@ Node EqualityEngine::mkExplainLit(TNode lit)
   return ret;
 }
 
+bool EqualityEngine::keepRedundantEqualities() const {
+  return options().uf.ufAlgorithmMode != options::UfAlgorithmMode::VANILLA;
+}
+
 std::pair<int, std::vector<EqualityEdgeId>> EqualityEngine::shortestPath(
     EqualityNodeId start,
     EqualityNodeId end,
@@ -1427,10 +1431,10 @@ std::pair<int, std::vector<EqualityEdgeId>> EqualityEngine::optimalTreeSizePath(
     EqualityNodeId start, EqualityNodeId end)
 {
 
-  // If the `--uf-keep-redundant` flag was not set, there will only be one path
+  // If we are not keeping redundant equalities, there will only be one path
   // between the two vertices in the e-graph anyway, so we optimize for this
   // case by doing a simple `shortestPath`
-  if (!options().uf.ufKeepRedundant)
+  if (!keepRedundantEqualities())
   {
     std::vector<int> edgeWeights(d_equalityEdges.size());
     for (EqualityEdgeId i = 0; i < d_equalityEdges.size(); ++i)
@@ -1504,7 +1508,7 @@ void EqualityEngine::getExplanation(
     EqProof* eqp,
     ExplainAlgorithm algo)
 {
-  if (!options().uf.ufKeepRedundant || algo == ExplainAlgorithm::Vanilla)
+  if (algo == ExplainAlgorithm::Vanilla)
       return getExplanationImpl(
           t1Id, t2Id, 0, false, std::vector<int>(), equalities, cache, eqp);
 
@@ -2098,7 +2102,7 @@ void EqualityEngine::propagate() {
     // conflict)
     bool isRedundant = t1classId == t2classId;
     if (isRedundant) {
-      if (!options().uf.ufKeepRedundant || (d_isConstant[t1classId] && d_isConstant[t2classId])) {
+      if (!keepRedundantEqualities() || (d_isConstant[t1classId] && d_isConstant[t2classId])) {
         Trace("test") << "..ignoring redundant propagated equality <"
                       << current.d_t1Id << ", " << current.d_t1Id << ">\n";
         continue;

@@ -614,6 +614,8 @@ class EqualityEngine : public context::ContextNotifyObj, protected EnvObj
                          EqualityNodeId id2,
                          EqProof* eqp) const;
 
+  bool keepRedundantEqualities() const;
+
   std::pair<int, std::vector<EqualityEdgeId>> shortestPath(
       EqualityNodeId start,
       EqualityNodeId end,
