@@ -107,3 +107,24 @@ name   = "Uninterpreted Functions Theory"
   type       = "bool"
   default    = "true"
   help       = "allows logics with UF+cardinality"
+
+[[option]]
+  name       = "ufAlgorithmMode"
+  category   = "undocumented"
+  long       = "uf-algo=MODE"
+  type       = "UfAlgorithmMode"
+  default    = "GREEDY"
+  help       = "modes for congruence closure algorithm"
+  help_mode  = "Modes for congruence closure algorithm."
+[[option.mode.VANILLA]]
+  name = "vanilla"
+  help = "Vanilla algorithm."
+[[option.mode.TREE_OPT]]
+  name = "tree-opt"
+  help = "TreeOpt algorithm."
+[[option.mode.GREEDY]]
+  name = "greedy"
+  help = "Greedy algorithm."
+[[option.mode.ALL]]
+  name = "all"
+  help = "Use all three algorithms, and print the proof sizes for each of them."

@@ -14,9 +14,13 @@
  */
 
 #include "theory/uf/equality_engine.h"
+#include <limits>
+#include <queue>
+#include <unordered_set>
 
 #include "base/output.h"
 #include "options/smt_options.h"
+#include "options/uf_options.h"
 #include "smt/env.h"
 #include "theory/rewriter.h"
 #include "theory/uf/eq_proof.h"
@@ -43,14 +47,13 @@ struct BfsData
   EqualityNodeId d_nodeId;
   // The index of the edge we traversed
   EqualityEdgeId d_edgeId;
-  // Index in the queue of the previous node. Shouldn't be too much of them, at
-  // most the size of the biggest equivalence class
-  size_t d_previousIndex;
+  // Distance from start node to this node
+  int d_distFromSource;
 
   BfsData(EqualityNodeId nodeId = null_id,
           EqualityEdgeId edgeId = null_edge,
-          size_t prev = 0)
-      : d_nodeId(nodeId), d_edgeId(edgeId), d_previousIndex(prev)
+          int dist = 0)
+      : d_nodeId(nodeId), d_edgeId(edgeId), d_distFromSource(dist)
   {
   }
 };
@@ -112,6 +115,7 @@ EqualityEngine::EqualityEngine(Env& env,
       d_applicationLookupsCount(c, 0),
       d_nodesCount(c, 0),
       d_assertedEqualitiesCount(c, 0),
+      d_redundantEqualitiesCount(0),
       d_equalityTriggersCount(c, 0),
       d_subtermEvaluatesSize(c, 0),
       d_stats(statisticsRegistry(), name + "::"),
@@ -144,6 +148,7 @@ EqualityEngine::EqualityEngine(Env& env,
       d_applicationLookupsCount(c, 0),
       d_nodesCount(c, 0),
       d_assertedEqualitiesCount(c, 0),
+      d_redundantEqualitiesCount(0),
       d_equalityTriggersCount(c, 0),
       d_subtermEvaluatesSize(c, 0),
       d_stats(statisticsRegistry(), name + "::"),
@@ -558,7 +563,8 @@ bool EqualityEngine::assertEquality(TNode eq,
   if (polarity)
   {
     // If two terms are already equal, don't assert anything
-    if (hasTerm(eq[0]) && hasTerm(eq[1]) && areEqual(eq[0], eq[1]))
+    if (hasTerm(eq[0]) && hasTerm(eq[1]) && areEqual(eq[0], eq[1])
+        && !keepRedundantEqualities())
     {
       return false;
     }
@@ -1020,6 +1026,9 @@ void EqualityEngine::backtrack()
       d_propagationQueue.pop_front();
     }
 
+    d_treeOptEdgeWeights.resize(2 * d_assertedEqualitiesCount);
+    d_greedyEdgeWeights.resize(2 * d_assertedEqualitiesCount);
+
     Trace("equality") << d_name << "::eq::backtrack(): nodes" << std::endl;
 
     for (int i = (int)d_assertedEqualities.size() - 1,
@@ -1030,7 +1039,7 @@ void EqualityEngine::backtrack()
       // Get the ids of the merged classes
       Equality& eq = d_assertedEqualities[i];
       // Undo the merge
-      if (eq.d_lhs != null_id)
+      if (eq.d_lhs != null_id && eq.d_causedMerge)
       {
         undoMerge(
             d_equalityNodes[eq.d_lhs], d_equalityNodes[eq.d_rhs], eq.d_rhs);
@@ -1048,8 +1057,19 @@ void EqualityEngine::backtrack()
     {
       EqualityEdge& edge1 = d_equalityEdges[i];
       EqualityEdge& edge2 = d_equalityEdges[i | 1];
-      d_equalityGraph[edge2.getNodeId()] = edge1.getNext();
-      d_equalityGraph[edge1.getNodeId()] = edge2.getNext();
+      EqualityNodeId node1 = edge1.getNodeId();
+      EqualityNodeId node2 = edge2.getNodeId();
+
+      d_equalityGraph[node2] = edge1.getNext();
+      d_equalityGraph[node1] = edge2.getNext();
+
+      // Remove equality from asserted equalities set
+      d_assertedEqualityPairs.erase(std::make_pair(node1, node2));
+      d_assertedEqualityPairs.erase(std::make_pair(node2, node1));
+      if (edge1.isRedundant()) d_redundantEqualitiesCount--;
+
+      d_edgeLevels.erase(std::make_pair(node1, node2));
+      d_edgeLevels.erase(std::make_pair(node2, node1));
     }
 
     d_equalityEdges.resize(2 * d_assertedEqualitiesCount);
@@ -1162,24 +1182,22 @@ void EqualityEngine::backtrack()
   }
 }
 
-void EqualityEngine::addGraphEdge(EqualityNodeId t1,
-                                  EqualityNodeId t2,
-                                  unsigned type,
-                                  TNode reason)
-{
+void EqualityEngine::addGraphEdge(EqualityNodeId t1, EqualityNodeId t2, unsigned type, TNode reason, bool isRedundant) {
   Trace("equality") << d_name << "::eq::addGraphEdge({" << t1 << "} "
                     << d_nodes[t1] << ", {" << t2 << "} " << d_nodes[t2] << ","
                     << reason << ")" << std::endl;
+
+  uint32_t level =  d_assertedEqualitiesCount + 1;
   EqualityEdgeId edge = d_equalityEdges.size();
-  d_equalityEdges.push_back(
-      EqualityEdge(t2, d_equalityGraph[t1], type, reason));
-  d_equalityEdges.push_back(
-      EqualityEdge(t1, d_equalityGraph[t2], type, reason));
+  d_equalityEdges.push_back(EqualityEdge(t2, d_equalityGraph[t1], type, reason, isRedundant, level));
+  d_equalityEdges.push_back(EqualityEdge(t1, d_equalityGraph[t2], type, reason, isRedundant, level));
   d_equalityGraph[t1] = edge;
   d_equalityGraph[t2] = edge | 1;
 
-  if (TraceIsOn("equality::internal"))
-  {
+  d_edgeLevels[std::make_pair(t1, t2)] = level;
+  d_edgeLevels[std::make_pair(t2, t1)] = level;
+
+  if (TraceIsOn("equality::internal")) {
     debugPrintGraph();
   }
 }
@@ -1291,7 +1309,8 @@ void EqualityEngine::explainEquality(TNode t1,
                                      TNode t2,
                                      bool polarity,
                                      std::vector<TNode>& equalities,
-                                     EqProof* eqp) const
+                                     EqProof* eqp,
+                                     ExplainAlgorithm algo)
 {
   Trace("pf::ee") << d_name << "::eq::explainEquality(" << t1 << ", " << t2
                   << ", " << (polarity ? "true" : "false") << ")"
@@ -1311,16 +1330,12 @@ void EqualityEngine::explainEquality(TNode t1,
     debugPrintGraph();
   }
 
-  std::map<std::pair<EqualityNodeId, EqualityNodeId>, EqProof*> cache;
-  if (polarity)
-  {
+  std::map<std::pair<EqualityNodeId, EqualityNodeId>, std::pair<uint32_t, EqProof*>> cache;
+  if (polarity) {
     // Get the explanation
-    getExplanation(t1Id, t2Id, equalities, cache, eqp);
-  }
-  else
-  {
-    if (eqp)
-    {
+    getExplanation(t1Id, t2Id, equalities, d_assertedEqualitiesCount, cache, eqp, algo);
+  } else {
+    if (eqp) {
       eqp->d_id = MERGED_THROUGH_TRANS;
       eqp->d_node = d_nodes[t1Id].eqNode(d_nodes[t2Id]).notNode();
     }
@@ -1351,8 +1366,13 @@ void EqualityEngine::explainEquality(TNode t1,
                         << std::endl;
       }
 
-      getExplanation(
-          toExplain.first, toExplain.second, equalities, cache, eqpc.get());
+      getExplanation(toExplain.first,
+                     toExplain.second,
+                     equalities,
+                     d_assertedEqualitiesCount,
+                     cache,
+                     eqpc.get(),
+                     algo);
 
       if (eqpc)
       {
@@ -1472,24 +1492,30 @@ void EqualityEngine::explainEquality(TNode t1,
 void EqualityEngine::explainPredicate(TNode p,
                                       bool polarity,
                                       std::vector<TNode>& assertions,
-                                      EqProof* eqp) const
+                                      EqProof* eqp,
+                                      ExplainAlgorithm algo)
 {
   Trace("equality") << d_name << "::eq::explainPredicate(" << p << ")"
                     << std::endl;
   // Must have the term
   Assert(hasTerm(p));
-  std::map<std::pair<EqualityNodeId, EqualityNodeId>, EqProof*> cache;
+  std::map<std::pair<EqualityNodeId, EqualityNodeId>, std::pair<uint32_t, EqProof*>> cache;
   if (TraceIsOn("equality::internal"))
   {
     debugPrintGraph();
   }
   // Get the explanation
-  getExplanation(
-      getNodeId(p), polarity ? d_trueId : d_falseId, assertions, cache, eqp);
+  getExplanation(getNodeId(p),
+                 polarity ? d_trueId : d_falseId,
+                 assertions,
+                 d_assertedEqualitiesCount,
+                 cache,
+                 eqp,
+                 algo);
 }
 
 void EqualityEngine::explainLit(TNode lit,
-                                std::vector<TNode>& assumptions) const
+                                std::vector<TNode>& assumptions)
 {
   Trace("eq-exp") << "explainLit: " << lit << std::endl;
   Assert(lit.getKind() != Kind::AND);
@@ -1528,7 +1554,7 @@ void EqualityEngine::explainLit(TNode lit,
   }
 }
 
-Node EqualityEngine::mkExplainLit(TNode lit) const
+Node EqualityEngine::mkExplainLit(TNode lit)
 {
   Assert(lit.getKind() != Kind::AND);
   std::vector<TNode> assumptions;
@@ -1549,27 +1575,195 @@ Node EqualityEngine::mkExplainLit(TNode lit) const
   return ret;
 }
 
+bool EqualityEngine::keepRedundantEqualities() const {
+  return options().uf.ufAlgorithmMode != options::UfAlgorithmMode::VANILLA;
+}
+
+int EqualityEngine::shortestPath(EqualityNodeId start,
+                                 EqualityNodeId end,
+                                 uint32_t maxLevel,
+                                 const std::vector<int>& edgeWeights) const
+{
+  auto compare = [](BfsData left, BfsData right) {
+    return left.d_distFromSource > right.d_distFromSource;
+  };
+  std::priority_queue<BfsData, std::vector<BfsData>, decltype(compare)>
+      priorityQueue(compare);
+  std::unordered_set<EqualityNodeId> seen;
+
+  priorityQueue.push(BfsData(start, null_edge, 0));
+
+  while (true)
+  {
+    BfsData current = priorityQueue.top();
+    priorityQueue.pop();
+    EqualityNodeId currentNode = current.d_nodeId;
+    int currentDist = current.d_distFromSource;
+
+    // Because of the way we update the distance, there might be duplicate
+    // entries in the priority queue. So, if this node was already seen, we
+    // skip it
+    if (seen.count(currentNode)) {
+      continue;
+    }
+    seen.insert(currentNode);
+
+    if (currentNode == end) {
+      return current.d_distFromSource;
+    }
+
+    for (EqualityEdgeId edge = d_equalityGraph[currentNode]; edge != null_edge;
+         edge = d_equalityEdges[edge].getNext())
+    {
+      int weight;
+      if (edgeWeights.empty())
+        weight = d_equalityEdges[edge].isRedundant()
+                     ? std::numeric_limits<int>::max()
+                     : 1;
+      else
+        weight = edgeWeights[edge];
+
+      if (weight == std::numeric_limits<int>::max()) continue;
+      if (d_equalityEdges[edge].getLevel() > maxLevel && d_equalityEdges[edge].isRedundant()) continue;
+
+      auto newDist = (currentDist > std::numeric_limits<int>::max() - weight)
+                         ? std::numeric_limits<int>::max()
+                         : currentDist + weight;
+      priorityQueue.push(BfsData(d_equalityEdges[edge].getNodeId(), edge, newDist));
+    }
+  }
+}
+
+void EqualityEngine::computeTreeOptWeights()
+{
+  for (EqualityEdgeId i = d_treeOptEdgeWeights.size(); i < d_equalityEdges.size(); i++)
+  {
+    if (d_equalityEdges[i].getReasonType() == MERGED_THROUGH_CONGRUENCE)
+      d_treeOptEdgeWeights.push_back(std::numeric_limits<int>::max());
+    else
+      d_treeOptEdgeWeights.push_back(1);
+  }
+
+  while(true) {
+    bool changed = false;
+    for (EqualityEdgeId i = 0; i < d_equalityEdges.size(); i += 2)
+    {
+      if (d_equalityEdges[i].getReasonType() == MERGED_THROUGH_CONGRUENCE)
+      {
+        EqualityNodeId node1 = d_equalityEdges[i].getNodeId();
+        const FunctionApplication& f1 = d_applications[node1].d_original;
+
+        EqualityNodeId node2 = d_equalityEdges[i + 1].getNodeId();
+        const FunctionApplication& f2 = d_applications[node2].d_original;
+
+        auto left = shortestPath(f1.d_a, f2.d_a, d_equalityEdges[i].getLevel(), d_treeOptEdgeWeights);
+        auto right = shortestPath(f1.d_b, f2.d_b, d_equalityEdges[i].getLevel(), d_treeOptEdgeWeights);
+        int newWeight = (left > std::numeric_limits<int>::max() - right)
+                            ? std::numeric_limits<int>::max()
+                            : left + right;
+
+        if (newWeight != d_treeOptEdgeWeights[i] || newWeight != d_treeOptEdgeWeights[i + 1])
+          changed = true;
+
+        d_treeOptEdgeWeights[i] = newWeight;
+        d_treeOptEdgeWeights[i + 1] = newWeight;
+      }
+    }
+
+    // When we hit the fixed point, we can stop
+    if (!changed) break;
+  }
+}
+
+void EqualityEngine::computeGreedyWeights()
+{
+  for (EqualityEdgeId i = d_greedyEdgeWeights.size(); i < d_equalityEdges.size(); i++)
+  {
+    d_greedyEdgeWeights.push_back(0);
+    if (i % 2 == 1)
+    {
+      d_greedyEdgeWeights[i] = d_greedyEdgeWeights[i - 1];
+    }
+    else if (d_equalityEdges[i].getReasonType() == MERGED_THROUGH_CONGRUENCE)
+    {
+      FunctionApplication f1 = d_applications[d_equalityEdges[i].getNodeId()].d_original;
+      FunctionApplication f2 = d_applications[d_equalityEdges[i + 1].getNodeId()].d_original;
+
+      uint32_t level = d_equalityEdges[i].getLevel();
+      int left = estimateTreeSize(f1.d_a, f2.d_a, level);
+      int right = estimateTreeSize(f1.d_b, f2.d_b, level);
+      d_greedyEdgeWeights[i] = (left > std::numeric_limits<int>::max() - right)
+                                   ? std::numeric_limits<int>::max()
+                                   : left + right;
+    }
+    else
+    {
+      d_greedyEdgeWeights[i] = 1;
+    }
+  }
+}
+
+int EqualityEngine::estimateTreeSize(EqualityNodeId start, EqualityNodeId end, uint32_t maxLevel) {
+    return shortestPath(start, end, maxLevel, std::vector<int>());
+}
+
 void EqualityEngine::getExplanation(
     EqualityNodeId t1Id,
     EqualityNodeId t2Id,
     std::vector<TNode>& equalities,
-    std::map<std::pair<EqualityNodeId, EqualityNodeId>, EqProof*>& cache,
-    EqProof* eqp) const
+    uint32_t level,
+    std::map<std::pair<EqualityNodeId, EqualityNodeId>, std::pair<uint32_t, EqProof*>>& cache,
+    EqProof* eqp,
+    ExplainAlgorithm algo)
 {
+  if (algo == ExplainAlgorithm::Vanilla)
+  {
+    getExplanationImpl(
+        t1Id, t2Id, std::numeric_limits<int>::max(), level, std::vector<int>(), equalities, cache, eqp, algo);
+  }
+  else if (algo == ExplainAlgorithm::TreeOpt)
+  {
+    computeTreeOptWeights();
+    getExplanationImpl(
+        t1Id, t2Id, std::numeric_limits<int>::max(), level, d_treeOptEdgeWeights, equalities, cache, eqp, algo);
+  }
+  else
+  {
+    computeGreedyWeights();
+    getExplanationImpl(
+        t1Id, t2Id, 10, level, d_greedyEdgeWeights, equalities, cache, eqp, algo);
+  }
+}
+
+void EqualityEngine::getExplanationImpl(
+      EqualityNodeId t1Id,
+      EqualityNodeId t2Id,
+      int fuel,
+      uint32_t level,
+      const std::vector<int>& proofSizeEstimates,
+      std::vector<TNode>& equalities,
+      std::map<std::pair<EqualityNodeId, EqualityNodeId>, std::pair<uint32_t, EqProof*>>& cache,
+      EqProof* eqp,
+      ExplainAlgorithm algo)
+{
+  if (fuel <= 0) {
+    return getExplanationImpl(
+        t1Id, t2Id, std::numeric_limits<int>::max(), level, std::vector<int>(), equalities, cache, eqp, ExplainAlgorithm::Vanilla);
+  }
   Trace("eq-exp") << d_name << "::eq::getExplanation({" << t1Id << "} "
                   << d_nodes[t1Id] << ", {" << t2Id << "} " << d_nodes[t2Id]
                   << ") size = " << cache.size() << std::endl;
 
   // determine if we have already computed the explanation.
   std::pair<EqualityNodeId, EqualityNodeId> cacheKey;
-  std::map<std::pair<EqualityNodeId, EqualityNodeId>, EqProof*>::iterator it;
+  std::map<std::pair<EqualityNodeId, EqualityNodeId>, std::pair<uint32_t, EqProof*>>::iterator it;
   if (!eqp)
   {
     // If proofs are disabled, we order the ids, since explaining t1 = t2 is the
     // same as explaining t2 = t1.
     cacheKey = std::minmax(t1Id, t2Id);
     it = cache.find(cacheKey);
-    if (it != cache.end())
+    if (it != cache.end() && it->second.first <= level)
     {
       return;
     }
@@ -1582,15 +1776,15 @@ void EqualityEngine::getExplanation(
     // case that proof/uf_proof.h,cpp is robust to equality ordering.
     cacheKey = std::pair<EqualityNodeId, EqualityNodeId>(t1Id, t2Id);
     it = cache.find(cacheKey);
-    if (it != cache.end())
+    if (it != cache.end() && it->second.first <= level)
     {
-      if (it->second)
+      if (it->second.second)
       {
-        eqp->d_id = it->second->d_id;
+        eqp->d_id = it->second.second->d_id;
         eqp->d_children.insert(eqp->d_children.end(),
-                               it->second->d_children.begin(),
-                               it->second->d_children.end());
-        eqp->d_node = it->second->d_node;
+                               it->second.second->d_children.begin(),
+                               it->second.second->d_children.end());
+        eqp->d_node = it->second.second->d_node;
       }
       else
       {
@@ -1602,7 +1796,10 @@ void EqualityEngine::getExplanation(
       return;
     }
   }
-  cache[cacheKey] = eqp;
+
+  if (d_edgeLevels.find(std::make_pair(t1Id, t2Id)) != d_edgeLevels.end()) {
+    level = std::min(level, d_edgeLevels.at(std::make_pair(t1Id, t2Id)));
+  }
 
   // We can only explain the nodes that got merged
 #ifdef CVC5_ASSERTIONS
@@ -1645,28 +1842,39 @@ void EqualityEngine::getExplanation(
     return;
   }
 
-  // Queue for the BFS containing nodes
-  std::vector<BfsData> bfsQueue;
+  auto compare = [](BfsData left, BfsData right) {
+    return left.d_distFromSource > right.d_distFromSource;
+  };
+  std::priority_queue<BfsData, std::vector<BfsData>, decltype(compare)>
+      priorityQueue(compare);
+  std::unordered_map<EqualityNodeId, EqualityEdgeId> traversed;
 
-  // Find a path from t1 to t2 in the graph (BFS)
-  bfsQueue.push_back(BfsData(t1Id, null_id, 0));
-  size_t currentIndex = 0;
-  while (true)
-  {
-    // There should always be a path, and every node can be visited only once
-    // (tree)
-    Assert(currentIndex < bfsQueue.size());
+  // Find a path from t1 to t2 in the graph
+  priorityQueue.push(BfsData(t1Id, null_edge, 0));
+  while (true) {
+    // There should always be a path, and every node can be visited only once (tree)
+    // Assert(currentIndex < bfsQueue.size());
 
     // The next node to visit
-    BfsData current = bfsQueue[currentIndex];
-    EqualityNodeId currentNode = current.d_nodeId;
+    BfsData current = priorityQueue.top();
+    priorityQueue.pop();
+    EqualityNodeId currentNodeId = current.d_nodeId;
+    int currentDist = current.d_distFromSource;
+
+    // Because of the way we update the distance, there might be duplicate
+    // entries in the priority queue. So, if this node was already seen, we
+    // skip it
+    if (traversed.count(currentNodeId)) {
+      continue;
+    }
+    traversed[currentNodeId] = current.d_edgeId;
 
     Trace("equality") << d_name << "::eq::getExplanation(): currentNode = {"
-                      << currentNode << "} " << d_nodes[currentNode]
+                      << currentNodeId << "} " << d_nodes[currentNodeId]
                       << std::endl;
 
     // Go through the equality edges of this node
-    EqualityEdgeId currentEdge = d_equalityGraph[currentNode];
+    EqualityEdgeId currentEdge = d_equalityGraph[currentNodeId];
     if (TraceIsOn("equality"))
     {
       Trace("equality") << d_name
@@ -1681,12 +1889,15 @@ void EqualityEngine::getExplanation(
       // Get the edge
       const EqualityEdge& edge = d_equalityEdges[currentEdge];
 
-      // If not just the backwards edge
-      if ((currentEdge | 1u) != (current.d_edgeId | 1u))
+      bool isBackEdge = (currentEdge | 1u) == (current.d_edgeId | 1u);
+      bool isForbidden = edge.getLevel() > level && edge.isRedundant();
+
+      // If not just the backwards edge, or forbidden edge
+      if (!isBackEdge && !isForbidden)
       {
         Trace("equality") << d_name
                           << "::eq::getExplanation(): currentEdge = ({"
-                          << currentNode << "} " << d_nodes[currentNode]
+                          << currentNodeId << "} " << d_nodes[currentNodeId]
                           << ", {" << edge.getNodeId() << "} "
                           << d_nodes[edge.getNodeId()] << ")" << std::endl;
 
@@ -1702,8 +1913,9 @@ void EqualityEngine::getExplanation(
           do
           {
             // The current node
-            currentNode = bfsQueue[currentIndex].d_nodeId;
+            currentNodeId = d_equalityEdges[currentEdge ^ 1].getNodeId();
             EqualityNodeId edgeNode = d_equalityEdges[currentEdge].getNodeId();
+
             MergeReasonType reasonType = static_cast<MergeReasonType>(
                 d_equalityEdges[currentEdge].getReasonType());
             Node reason = d_equalityEdges[currentEdge].getReason();
@@ -1711,13 +1923,13 @@ void EqualityEngine::getExplanation(
             Trace("equality")
                 << d_name
                 << "::eq::getExplanation(): currentEdge = " << currentEdge
-                << ", currentNode = " << currentNode << std::endl;
+                << ", currentNode = " << currentNodeId << std::endl;
             Trace("equality")
                 << d_name << "                       targetNode = {" << edgeNode
                 << "} " << d_nodes[edgeNode] << std::endl;
             Trace("equality")
                 << d_name << "                       in currentEdge = ({"
-                << currentNode << "} " << d_nodes[currentNode] << ", {"
+                << currentNodeId << "} " << d_nodes[currentNodeId] << ", {"
                 << edge.getNodeId() << "} " << d_nodes[edge.getNodeId()] << ")"
                 << std::endl;
             Trace("equality")
@@ -1735,197 +1947,210 @@ void EqualityEngine::getExplanation(
             }
 
             // Add the actual equality to the vector
-            switch (reasonType)
-            {
-              case MERGED_THROUGH_CONGRUENCE:
+            switch (reasonType) {
+            case MERGED_THROUGH_CONGRUENCE: {
+              // f(x1, x2) == f(y1, y2) because x1 = y1 and x2 = y2
+              Trace("equality")
+                  << d_name
+                  << "::eq::getExplanation(): due to congruence, going deeper"
+                  << std::endl;
+              const FunctionApplication& f1 =
+                  d_applications[currentNodeId].d_original;
+              const FunctionApplication& f2 =
+                  d_applications[edgeNode].d_original;
+
+              Trace("equality") << push;
+              Trace("equality") << "Explaining left hand side equalities" << std::endl;
+              std::shared_ptr<EqProof> eqpc1 =
+                  eqpc ? std::make_shared<EqProof>() : nullptr;
+              getExplanationImpl(f1.d_a,
+                                 f2.d_a,
+                                 fuel - 1,
+                                 level,
+                                 proofSizeEstimates,
+                                 equalities,
+                                 cache,
+                                 eqpc1.get(),
+                                 algo);
+              Trace("equality")
+                  << "Explaining right hand side equalities" << std::endl;
+              std::shared_ptr<EqProof> eqpc2 =
+                  eqpc ? std::make_shared<EqProof>() : nullptr;
+              getExplanationImpl(f1.d_b,
+                                 f2.d_b,
+                                 fuel - 1,
+                                 level,
+                                 proofSizeEstimates,
+                                 equalities,
+                                 cache,
+                                 eqpc2.get(),
+                                 algo);
+              if (eqpc)
               {
-                // f(x1, x2) == f(y1, y2) because x1 = y1 and x2 = y2
-                Trace("equality")
-                    << d_name
-                    << "::eq::getExplanation(): due to congruence, going deeper"
-                    << std::endl;
-                const FunctionApplication& f1 =
-                    d_applications[currentNode].d_original;
-                const FunctionApplication& f2 =
-                    d_applications[edgeNode].d_original;
-
-                Trace("equality") << push;
-                Trace("equality")
-                    << "Explaining left hand side equalities" << std::endl;
-                std::shared_ptr<EqProof> eqpc1 =
-                    eqpc ? std::make_shared<EqProof>() : nullptr;
-                getExplanation(f1.d_a, f2.d_a, equalities, cache, eqpc1.get());
-                Trace("equality")
-                    << "Explaining right hand side equalities" << std::endl;
-                std::shared_ptr<EqProof> eqpc2 =
-                    eqpc ? std::make_shared<EqProof>() : nullptr;
-                getExplanation(f1.d_b, f2.d_b, equalities, cache, eqpc2.get());
-                if (eqpc)
+                eqpc->d_children.push_back(eqpc1);
+                eqpc->d_children.push_back(eqpc2);
+                // build conclusion if ids correspond to non-internal nodes or
+                // if non-internal nodes can be retrieved from them (in the
+                // case of n-ary applications), otherwise leave conclusion as
+                // null. This is only done for congruence kinds, since
+                // congruence is not used otherwise.
+                Kind k = d_nodes[currentNodeId].getKind();
+                if (d_congruenceKinds[k])
                 {
-                  eqpc->d_children.push_back(eqpc1);
-                  eqpc->d_children.push_back(eqpc2);
-                  // build conclusion if ids correspond to non-internal nodes or
-                  // if non-internal nodes can be retrieved from them (in the
-                  // case of n-ary applications), otherwise leave conclusion as
-                  // null. This is only done for congruence kinds, since
-                  // congruence is not used otherwise.
-                  Kind k = d_nodes[currentNode].getKind();
-                  if (d_congruenceKinds[k])
-                  {
-                    buildEqConclusion(currentNode, edgeNode, eqpc.get());
-                  }
-                  else
-                  {
-                    Assert(k == Kind::EQUAL)
-                        << "not an internal node " << d_nodes[currentNode]
-                        << " with non-congruence with " << k << "\n";
-                  }
-                }
-                Trace("equality") << pop;
-                break;
-              }
-
-              case MERGED_THROUGH_REFLEXIVITY:
-              {
-                // x1 == x1
-                Trace("equality") << d_name
-                                  << "::eq::getExplanation(): due to "
-                                     "reflexivity, going deeper"
-                                  << std::endl;
-                EqualityNodeId eqId =
-                    currentNode == d_trueId ? edgeNode : currentNode;
-                const FunctionApplication& eq = d_applications[eqId].d_original;
-                Assert(eq.isEquality()) << "Must be an equality";
-
-                // Explain why a = b constant
-                Trace("equality") << push;
-                std::shared_ptr<EqProof> eqpc1 =
-                    eqpc ? std::make_shared<EqProof>() : nullptr;
-                getExplanation(eq.d_a, eq.d_b, equalities, cache, eqpc1.get());
-                if (eqpc)
-                {
-                  eqpc->d_children.push_back(eqpc1);
-                }
-                Trace("equality") << pop;
-
-                break;
-              }
-
-              case MERGED_THROUGH_CONSTANTS:
-              {
-                // f(c1, ..., cn) = c semantically, we can just ignore it
-                Trace("equality") << d_name
-                                  << "::eq::getExplanation(): due to "
-                                     "constants, explain the constants"
-                                  << std::endl;
-                Trace("equality") << push;
-
-                // Get the node we interpreted
-                TNode interpreted;
-                if (eqpc)
-                {
-                  // build the conclusion f(c1, ..., cn) = c
-                  if (d_nodes[currentNode].isConst())
-                  {
-                    interpreted = d_nodes[edgeNode];
-                    eqpc->d_node =
-                        d_nodes[edgeNode].eqNode(d_nodes[currentNode]);
-                  }
-                  else
-                  {
-                    interpreted = d_nodes[currentNode];
-                    eqpc->d_node =
-                        d_nodes[currentNode].eqNode(d_nodes[edgeNode]);
-                  }
+                  buildEqConclusion(currentNodeId, edgeNode, eqpc.get());
                 }
                 else
                 {
-                  interpreted = d_nodes[currentNode].isConst()
-                                    ? d_nodes[edgeNode]
-                                    : d_nodes[currentNode];
+                  Assert(k == Kind::EQUAL)
+                      << "not an internal node " << d_nodes[currentNodeId]
+                      << " with non-congruence with " << k << "\n";
                 }
+              }
+              Trace("equality") << pop;
+              break;
+            }
+            case MERGED_THROUGH_REFLEXIVITY: {
+              // x1 == x1
+              Trace("equality") << d_name << "::eq::getExplanation(): due to reflexivity, going deeper" << std::endl;
+              EqualityNodeId eqId = currentNodeId == d_trueId ? edgeNode : currentNodeId;
+              const FunctionApplication& eq = d_applications[eqId].d_original;
+              Assert(eq.isEquality()) << "Must be an equality";
 
-                // Explain why a is a constant by explaining each argument
-                for (unsigned i = 0; i < interpreted.getNumChildren(); ++i)
+              // Explain why a = b constant
+              Trace("equality") << push;
+              std::shared_ptr<EqProof> eqpc1 =
+                  eqpc ? std::make_shared<EqProof>() : nullptr;
+              getExplanationImpl(eq.d_a,
+                                  eq.d_a,
+                                  fuel,
+                                  edge.getLevel(),
+                                  proofSizeEstimates,
+                                  equalities,
+                                  cache,
+                                  eqpc1.get(),
+                                  algo);
+              if( eqpc ){
+                eqpc->d_children.push_back( eqpc1 );
+              }
+              Trace("equality") << pop;
+
+              break;
+            }
+
+            case MERGED_THROUGH_CONSTANTS: {
+              // f(c1, ..., cn) = c semantically, we can just ignore it
+              Trace("equality") << d_name << "::eq::getExplanation(): due to constants, explain the constants" << std::endl;
+              Trace("equality") << push;
+
+              // Get the node we interpreted
+              TNode interpreted;
+              if (eqpc)
+              {
+                // build the conclusion f(c1, ..., cn) = c
+                if (d_nodes[currentNodeId].isConst())
                 {
-                  EqualityNodeId childId = getNodeId(interpreted[i]);
-                  Assert(isConstant(childId));
-                  std::shared_ptr<EqProof> eqpcc =
-                      eqpc ? std::make_shared<EqProof>() : nullptr;
-                  getExplanation(childId,
-                                 getEqualityNode(childId).getFind(),
-                                 equalities,
-                                 cache,
-                                 eqpcc.get());
-                  if (eqpc)
-                  {
-                    eqpc->d_children.push_back(eqpcc);
-                    if (TraceIsOn("pf::ee"))
-                    {
-                      Trace("pf::ee")
-                          << "MERGED_THROUGH_CONSTANTS. Dumping the child proof"
-                          << std::endl;
-                      eqpc->debug_print("pf::ee", 1);
-                    }
-                  }
+                  interpreted = d_nodes[edgeNode];
+                  eqpc->d_node =
+                      d_nodes[edgeNode].eqNode(d_nodes[currentNodeId]);
                 }
-
-                Trace("equality") << pop;
-                break;
+                else
+                {
+                  interpreted = d_nodes[currentNodeId];
+                  eqpc->d_node =
+                      d_nodes[currentNodeId].eqNode(d_nodes[edgeNode]);
+                }
+              }
+              else
+              {
+                interpreted = d_nodes[currentNodeId].isConst()
+                                  ? d_nodes[edgeNode]
+                                  : d_nodes[currentNodeId];
               }
 
-              default:
+              // Explain why a is a constant by explaining each argument
+              for (unsigned i = 0; i < interpreted.getNumChildren(); ++i)
               {
-                // Construct the equality
-                Trace("equality")
-                    << d_name << "::eq::getExplanation(): adding: " << reason
-                    << std::endl;
-                Trace("equality")
-                    << d_name
-                    << "::eq::getExplanation(): reason type = " << reasonType
-                    << "\n";
-                Node a = d_nodes[currentNode];
-                Node b = d_nodes[d_equalityEdges[currentEdge].getNodeId()];
-
+                EqualityNodeId childId = getNodeId(interpreted[i]);
+                Assert(isConstant(childId));
+                std::shared_ptr<EqProof> eqpcc =
+                    eqpc ? std::make_shared<EqProof>() : nullptr;
+                getExplanationImpl(childId,
+                                   getEqualityNode(childId).getFind(),
+                                   fuel - 1,
+                                   level,
+                                   proofSizeEstimates,
+                                   equalities,
+                                   cache,
+                                   eqpcc.get(),
+                                   algo);
                 if (eqpc)
                 {
-                  if (reasonType == MERGED_THROUGH_EQUALITY)
+                  eqpc->d_children.push_back(eqpcc);
+                  if (TraceIsOn("pf::ee"))
                   {
-                    // in the new proof infrastructure we can assume that
-                    // "theory assumptions", which are a consequence of theory
-                    // reasoning on other assumptions, are externally justified.
-                    // In this case we can use (= a b) directly as the
-                    // conclusion here.
-                    eqpc->d_node = b.eqNode(a);
+                    Trace("pf::ee")
+                        << "MERGED_THROUGH_CONSTANTS. Dumping the child proof"
+                        << std::endl;
+                    eqpc->debug_print("pf::ee", 1);
+                  }
+                }
+              }
+
+              Trace("equality") << pop;
+              break;
+            }
+
+            default:
+            {
+              // Construct the equality
+              Trace("equality")
+                  << d_name << "::eq::getExplanation(): adding: " << reason
+                  << std::endl;
+              Trace("equality")
+                  << d_name
+                  << "::eq::getExplanation(): reason type = " << reasonType
+                  << "\n";
+              Node a = d_nodes[currentNodeId];
+              Node b = d_nodes[d_equalityEdges[currentEdge].getNodeId()];
+
+              if (eqpc)
+              {
+                if (reasonType == MERGED_THROUGH_EQUALITY)
+                {
+                  // in the new proof infrastructure we can assume that
+                  // "theory assumptions", which are a consequence of theory
+                  // reasoning on other assumptions, are externally justified.
+                  // In this case we can use (= a b) directly as the
+                  // conclusion here.
+                  eqpc->d_node = b.eqNode(a);
+                }
+                else
+                {
+                  // The LFSC translator prefers (not (= a b)) over (= (= a b)
+                  // false)
+
+                  if (a == nodeManager()->mkConst(false))
+                  {
+                    eqpc->d_node = b.notNode();
+                  }
+                  else if (b == nodeManager()->mkConst(false))
+                  {
+                    eqpc->d_node = a.notNode();
                   }
                   else
                   {
-                    // The LFSC translator prefers (not (= a b)) over (= (= a b)
-                    // false)
-
-                    if (a == nodeManager()->mkConst(false))
-                    {
-                      eqpc->d_node = b.notNode();
-                    }
-                    else if (b == nodeManager()->mkConst(false))
-                    {
-                      eqpc->d_node = a.notNode();
-                    }
-                    else
-                    {
-                      eqpc->d_node = b.eqNode(a);
-                    }
+                    eqpc->d_node = b.eqNode(a);
                   }
-                  eqpc->d_id = reasonType;
                 }
-                equalities.push_back(reason);
-                break;
+                eqpc->d_id = reasonType;
               }
+              equalities.push_back(reason);
+              break;
+            }
             }
 
             // Go to the previous
-            currentEdge = bfsQueue[currentIndex].d_edgeId;
-            currentIndex = bfsQueue[currentIndex].d_previousIndex;
+            currentEdge = traversed[currentNodeId];
 
             //---from Morgan---
             if (eqpc != nullptr && eqpc->d_id == MERGED_THROUGH_REFLEXIVITY)
@@ -1971,21 +2196,24 @@ void EqualityEngine::getExplanation(
           }
 
           // Done
+          cache[cacheKey] = std::make_pair(level, eqp);
           return;
         }
 
         // Push to the visitation queue if it's not the backward edge
-        bfsQueue.push_back(
-            BfsData(edge.getNodeId(), currentEdge, currentIndex));
+        auto edgeWeight = proofSizeEstimates.empty() ? 1 : proofSizeEstimates[currentEdge];
+        auto newDist =
+            (currentDist > std::numeric_limits<int>::max() - edgeWeight)
+                ? std::numeric_limits<int>::max()
+                : currentDist + edgeWeight;
+        priorityQueue.push(BfsData(edge.getNodeId(), currentEdge, newDist));
       }
 
       // Go to the next edge
       currentEdge = edge.getNext();
     }
-
-    // Go to the next node to visit
-    ++currentIndex;
   }
+  cache[cacheKey] = std::make_pair(level, eqp);
 }
 
 void EqualityEngine::addTriggerEquality(TNode eq)
@@ -2225,11 +2453,26 @@ void EqualityEngine::propagate()
     EqualityNodeId t1classId = getEqualityNode(current.d_t1Id).getFind();
     EqualityNodeId t2classId = getEqualityNode(current.d_t2Id).getFind();
 
-    // If already the same, we're done
-    if (t1classId == t2classId)
-    {
+    // If already the same, we're done, unless we are keeping redundant
+    // equalities. Note that we de not keep redundant equalities between
+    // constants, since that would break assumptions below (namely that when
+    // propagating constant merging they are different and therefore we are in
+    // conflict)
+    bool isRedundant = t1classId == t2classId;
+    if (isRedundant) {
+      if (!keepRedundantEqualities() || (d_isConstant[t1classId] && d_isConstant[t2classId])) {
+        continue;
+      }
+    }
+
+    // If we already asserted this exact equality (or its reverse), we don't add it
+    auto key = std::make_pair(current.d_t1Id, current.d_t2Id);
+    if (d_assertedEqualityPairs.find(key) != d_assertedEqualityPairs.end()) {
       continue;
     }
+    d_assertedEqualityPairs.insert(key);
+    d_assertedEqualityPairs.insert(std::make_pair(current.d_t2Id, current.d_t1Id));
+    if (isRedundant) d_redundantEqualitiesCount++;
 
     Trace("equality::internal")
         << d_name << "::eq::propagate(): t1: "
@@ -2247,17 +2490,16 @@ void EqualityEngine::propagate()
 
     // Add the actual equality to the equality graph
     addGraphEdge(
-        current.d_t1Id, current.d_t2Id, current.d_type, current.d_reason);
+        current.d_t1Id, current.d_t2Id, current.d_type, current.d_reason, isRedundant);
 
     // If constants are being merged we're done
     if (d_isConstant[t1classId] && d_isConstant[t2classId])
     {
       // When merging constants we are inconsistent, hence done
       d_done = true;
-      // But in order to keep invariants (edges = 2*equalities) we put an
-      // equalities in Note that we can explain this merge as we have a graph
-      // edge
-      d_assertedEqualities.push_back(Equality(null_id, null_id));
+      // But in order to keep invariants (edges = 2*equalities) we put an equalities in
+      // Note that we can explain this merge as we have a graph edge
+      d_assertedEqualities.push_back(Equality(null_id, null_id, !isRedundant));
       d_assertedEqualitiesCount = d_assertedEqualitiesCount + 1;
       // Notify
       d_notify->eqNotifyConstantTermMerge(d_nodes[t1classId],
@@ -2304,12 +2546,17 @@ void EqualityEngine::propagate()
       mergeInto = t2classId;
     }
 
-    if (mergeInto == t2classId)
-    {
+    if (isRedundant) {
+      d_assertedEqualities.push_back(Equality(null_id, null_id, false));
+      d_assertedEqualitiesCount = d_assertedEqualitiesCount + 1;
+      continue;
+    }
+
+    if (mergeInto == t2classId) {
       Trace("equality") << d_name << "::eq::propagate(): merging "
                         << d_nodes[current.d_t1Id] << " into "
                         << d_nodes[current.d_t2Id] << std::endl;
-      d_assertedEqualities.push_back(Equality(t2classId, t1classId));
+      d_assertedEqualities.push_back(Equality(t2classId, t1classId, !isRedundant));
       d_assertedEqualitiesCount = d_assertedEqualitiesCount + 1;
       if (!merge(node2, node1, triggers))
       {
@@ -2321,7 +2568,7 @@ void EqualityEngine::propagate()
       Trace("equality") << d_name << "::eq::propagate(): merging "
                         << d_nodes[current.d_t2Id] << " into "
                         << d_nodes[current.d_t1Id] << std::endl;
-      d_assertedEqualities.push_back(Equality(t1classId, t2classId));
+      d_assertedEqualities.push_back(Equality(t1classId, t2classId, !isRedundant));
       d_assertedEqualitiesCount = d_assertedEqualitiesCount + 1;
       if (!merge(node1, node2, triggers))
       {
