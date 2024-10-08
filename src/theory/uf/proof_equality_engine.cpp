@@ -15,9 +15,11 @@
 
 #include "theory/uf/proof_equality_engine.h"
 
+#include "options/uf_options.h"
 #include "proof/lazy_proof_chain.h"
 #include "proof/proof_node.h"
 #include "proof/proof_node_manager.h"
+#include "proof/proof_node_algorithm.h"
 #include "smt/env.h"
 #include "theory/rewriter.h"
 #include "theory/uf/eq_proof.h"
@@ -293,6 +295,13 @@ TrustNode ProofEqEngine::explain(Node conc)
   LazyCDProof tmpProof(d_env, &d_proof);
   std::vector<TNode> assumps;
   explainWithProof(conc, assumps, &tmpProof);
+  std::vector<Node> toBlock;
+  for (auto a :assumps)
+  {
+    toBlock.push_back(a);
+    toBlock.push_back(CDProof::getSymmFact(a));
+  }
+  tmpProof.setBlockedAssumptions(toBlock);
   return ensureProofForFact(conc, assumps, TrustNodeKind::PROP_EXP, &tmpProof);
 }
 
@@ -491,6 +500,12 @@ bool ProofEqEngine::holds(TNode atom, bool polarity)
   return d_ee.areEqual(atom, b);
 }
 
+size_t getEqProofSize(Env& env, eq::EqProof& proof) {
+  LazyCDProof tmpProof(env);
+  proof.addToProof(&tmpProof);
+  return tmpProof.getNumProofNodes();
+}
+
 void ProofEqEngine::explainWithProof(Node lit,
                                      std::vector<TNode>& assumps,
                                      LazyCDProof* curr)
@@ -499,6 +514,20 @@ void ProofEqEngine::explainWithProof(Node lit,
   {
     return;
   }
+  EqualityEngine::ExplainAlgorithm explainAlgo;
+  switch (options().uf.ufAlgorithmMode) {
+    case options::UfAlgorithmMode::VANILLA:
+      explainAlgo = EqualityEngine::ExplainAlgorithm::Vanilla;
+      break;
+    case options::UfAlgorithmMode::TREE_OPT:
+      explainAlgo = EqualityEngine::ExplainAlgorithm::TreeOpt;
+      break;
+    default:
+      explainAlgo = EqualityEngine::ExplainAlgorithm::Greedy;
+      break;
+  }
+  bool isRunningExperiment = options().uf.ufAlgorithmMode == options::UfAlgorithmMode::ALL;
+
   std::shared_ptr<eq::EqProof> pf = std::make_shared<eq::EqProof>();
   Trace("pfee-proof") << "pfee::explainWithProof: " << lit << std::endl;
   bool polarity = lit.getKind() != Kind::NOT;
@@ -518,12 +547,42 @@ void ProofEqEngine::explainWithProof(Node lit,
       // ensure the explanation exists
       AlwaysAssert(d_ee.areDisequal(atom[0], atom[1], true));
     }
-    d_ee.explainEquality(atom[0], atom[1], polarity, tassumps, pf.get());
+    if (isRunningExperiment) {
+      d_ee.explainEquality(atom[0], atom[1], polarity, tassumps, pf.get(), EqualityEngine::ExplainAlgorithm::Vanilla);
+      auto greedyPf = eq::EqProof();
+      d_ee.explainEquality(atom[0], atom[1], polarity, tassumps, &greedyPf, EqualityEngine::ExplainAlgorithm::Greedy);
+      auto treeOptPf = eq::EqProof();
+      d_ee.explainEquality(atom[0], atom[1], polarity, tassumps, &treeOptPf, EqualityEngine::ExplainAlgorithm::TreeOpt);
+      d_ee.debugPrintEqualityCounts();
+      Trace("cc-experiments") << "proof sizes: "
+                << getEqProofSize(d_env, *pf.get()) << ","
+                << getEqProofSize(d_env, greedyPf) << ","
+                << getEqProofSize(d_env, treeOptPf) << std::endl;
+    } else {
+      d_ee.explainEquality(atom[0], atom[1], polarity, tassumps, pf.get(), explainAlgo);
+      d_ee.debugPrintEqualityCounts();
+      Trace("cc-experiments") << "proof sizes: " << getEqProofSize(d_env, *pf.get()) << std::endl;
+    }
   }
   else
   {
     Assert(d_ee.hasTerm(atom));
-    d_ee.explainPredicate(atom, polarity, tassumps, pf.get());
+    if (isRunningExperiment) {
+      d_ee.explainPredicate(atom, polarity, tassumps, pf.get(), EqualityEngine::ExplainAlgorithm::Vanilla);
+      auto greedyPf = eq::EqProof();
+      d_ee.explainPredicate(atom, polarity, tassumps, &greedyPf, EqualityEngine::ExplainAlgorithm::Greedy);
+      auto treeOptPf = eq::EqProof();
+      d_ee.explainPredicate(atom, polarity, tassumps, &treeOptPf, EqualityEngine::ExplainAlgorithm::TreeOpt);
+      d_ee.debugPrintEqualityCounts();
+      Trace("cc-experiments") << "proof sizes: "
+                << getEqProofSize(d_env, *pf.get()) << ","
+                << getEqProofSize(d_env, greedyPf) << ","
+                << getEqProofSize(d_env, treeOptPf) << std::endl;
+    } else {
+      d_ee.explainPredicate(atom, polarity, tassumps, pf.get(), explainAlgo);
+      d_ee.debugPrintEqualityCounts();
+      Trace("cc-experiments") << "proof sizes: " << getEqProofSize(d_env, *pf.get()) << std::endl;
+    }
   }
   Trace("pfee-proof") << "...got " << tassumps << std::endl;
   // avoid duplicates
@@ -549,7 +608,36 @@ void ProofEqEngine::explainWithProof(Node lit,
   }
   // add the steps in the equality engine proof to the Proof
   pf->addToProof(curr);
+  // we may need to update the assumptions in the case that an assumption has a
+  // proof in d_proof, which means that this assumption is a redundant equality
+  // for which we have a proof, and when building a proof node for the explained
+  // literal the assumptions of that proof node will be from the proof of that
+  // redundant equality. This will break mkScope further down the stream. A
+  // solution would be to prevent the expansion of the proof of this redundant
+  // equality, but that'd require changing the LazyProof infrastructure.
+  // Instead, we change the assumptions.
+  // if (explainAlgo != EqualityEngine::ExplainAlgorithm::Vanilla)
+  // {
+  //   std::vector<TNode> newAssumps;
+  //   for (auto a : assumps)
+  //   {
+  //     if (!d_proof.hasStep(a))
+  //     {
+  //       newAssumps.push_back(a);
+  //       continue;
+  //     }
+  //     std::shared_ptr<ProofNode> aPf = d_proof.getProofFor(a);
+  //     std::vector<Node> aAssumps;
+  //     expr::getFreeAssumptions(aPf.get(), aAssumps);
+  //     newAssumps.insert(newAssumps.end(), aAssumps.begin(), aAssumps.end());
+  //   }
+  //   assumps.clear();
+  //   assumps.insert(assumps.end(), newAssumps.begin(), newAssumps.end());
+  // }
   Trace("pfee-proof") << "pfee::explainWithProof: finished" << std::endl;
+  Trace("test") << "pfee::explainWithProof: finished [lit " << lit
+                << ", pf size " << curr->getNumProofNodes() << "]"
+                << std::endl;
 }
 
 }  // namespace eq

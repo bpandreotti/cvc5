@@ -866,6 +866,7 @@ Node EqProof::addToProof(CDProof* p,
   }
   Trace("eqproof-conv") << "EqProof::addToProof: adding step for " << d_id
                         << " with conclusion " << d_node << "\n";
+  Assert(!d_node.isNull());
   // Assumption
   if (d_id == MERGED_THROUGH_EQUALITY)
   {

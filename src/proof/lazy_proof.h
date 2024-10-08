@@ -103,6 +103,15 @@ class LazyCDProof : public CDProof
   /** Does the given fact have an explicitly provided generator? */
   bool hasGenerator(Node fact) const;
 
+  void setBlockedAssumptions(const std::vector<Node>& blockedAssumptions)
+  {
+    d_blockedAssumptions.clear();
+    d_blockedAssumptions.insert(d_blockedAssumptions.end(),
+                                blockedAssumptions.begin(),
+                                blockedAssumptions.end());
+    Trace("bruno") << "blocking " << blockedAssumptions << "\n";
+  }
+
  protected:
   typedef context::CDHashMap<Node, ProofGenerator*> NodeProofGeneratorMap;
   typedef context::CDHashSet<ProofNode*> ProofNodeSet;
@@ -120,6 +129,8 @@ class LazyCDProof : public CDProof
   bool d_doCache;
   /** The set of proof nodes we have processed in getProofFor */
   ProofNodeSet d_allVisited;
+
+  std::vector<Node> d_blockedAssumptions;
 };
 
 }  // namespace cvc5::internal

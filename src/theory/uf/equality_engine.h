@@ -200,6 +200,13 @@ class EqualityEngine : public context::ContextNotifyObj, protected EnvObj
                       TNode reason,
                       unsigned pid = MERGED_THROUGH_EQUALITY);
 
+  enum class ExplainAlgorithm
+  {
+    Vanilla,
+    TreeOpt,
+    Greedy,
+  };
+
   //--------------------end updates
   //--------------------------- explanation methods
   /**
@@ -211,7 +218,8 @@ class EqualityEngine : public context::ContextNotifyObj, protected EnvObj
                        TNode t2,
                        bool polarity,
                        std::vector<TNode>& assertions,
-                       EqProof* eqp = nullptr) const;
+                       EqProof* eqp = nullptr,
+                       ExplainAlgorithm algo = ExplainAlgorithm::Greedy);
 
   /**
    * Get an explanation of the predicate being true or false.
@@ -221,7 +229,8 @@ class EqualityEngine : public context::ContextNotifyObj, protected EnvObj
   void explainPredicate(TNode p,
                         bool polarity,
                         std::vector<TNode>& assertions,
-                        EqProof* eqp = nullptr) const;
+                        EqProof* eqp = nullptr,
+                        ExplainAlgorithm algo = ExplainAlgorithm::Greedy);
 
   /**
    * Explain literal, add its explanation to assumptions. This method does not
@@ -230,12 +239,12 @@ class EqualityEngine : public context::ContextNotifyObj, protected EnvObj
    * moreover ensures this class is ready to explain it via areDisequal with
    * ensureProof = true.
    */
-  void explainLit(TNode lit, std::vector<TNode>& assumptions) const;
+  void explainLit(TNode lit, std::vector<TNode>& assumptions);
   /**
    * Explain literal, return the explanation as a conjunction. This method
    * relies on the above method.
    */
-  Node mkExplainLit(TNode lit) const;
+  Node mkExplainLit(TNode lit);
   //--------------------------- end explanation methods
 
   /**
@@ -270,6 +279,9 @@ class EqualityEngine : public context::ContextNotifyObj, protected EnvObj
   std::string identify() const;
   /** Print the equivalence classes for debugging */
   std::string debugPrintEqc() const;
+
+  /** Print the number of redundant and total equalitites */
+  void debugPrintEqualityCounts() const;
 
  private:
   /** Statistics about the equality engine instance */
@@ -360,6 +372,9 @@ class EqualityEngine : public context::ContextNotifyObj, protected EnvObj
   /** Number of asserted equalities we have so far */
   context::CDO<DefaultSizeType> d_assertedEqualitiesCount;
 
+  /** Number of redundant equalities added */
+  DefaultSizeType d_redundantEqualitiesCount;
+
   /** Memory for the use-list nodes */
   std::vector<UseListNode> d_useListNodes;
 
@@ -372,15 +387,20 @@ class EqualityEngine : public context::ContextNotifyObj, protected EnvObj
     EqualityNodeId d_lhs;
     /** Right hand side of the equality */
     EqualityNodeId d_rhs;
+    /** Has this equality caused a merge **/
+    bool d_causedMerge;
     /** Equality constructor */
-    Equality(EqualityNodeId l = null_id, EqualityNodeId r = null_id)
-        : d_lhs(l), d_rhs(r)
+    Equality(EqualityNodeId l = null_id, EqualityNodeId r = null_id, bool causedMerge = false)
+        : d_lhs(l), d_rhs(r), d_causedMerge(causedMerge)
     {
     }
   };/* struct EqualityEngine::Equality */
 
   /** The ids of the classes we have merged */
   std::vector<Equality> d_assertedEqualities;
+
+  /** A set of node pairs corresponding to the equalities that were asserted **/
+  std::set<std::pair<EqualityNodeId, EqualityNodeId>> d_assertedEqualityPairs;
 
   /** The reasons for the equalities */
 
@@ -398,14 +418,17 @@ class EqualityEngine : public context::ContextNotifyObj, protected EnvObj
     unsigned d_mergeType;
     // Reason of this equality
     TNode d_reason;
+    // Is this equality edge redundant
+    bool d_isRedundant;
 
+    uint32_t d_level;
   public:
 
     EqualityEdge():
-      d_nodeId(null_edge), d_nextId(null_edge), d_mergeType(MERGED_THROUGH_CONGRUENCE) {}
+      d_nodeId(null_edge), d_nextId(null_edge), d_mergeType(MERGED_THROUGH_CONGRUENCE), d_isRedundant(false), d_level(0) {}
 
-    EqualityEdge(EqualityNodeId nodeId, EqualityNodeId nextId, unsigned type, TNode reason):
-      d_nodeId(nodeId), d_nextId(nextId), d_mergeType(type), d_reason(reason) {}
+    EqualityEdge(EqualityNodeId nodeId, EqualityNodeId nextId, unsigned type, TNode reason, bool isRedundant, uint32_t level):
+      d_nodeId(nodeId), d_nextId(nextId), d_mergeType(type), d_reason(reason), d_isRedundant(isRedundant), d_level(level) {}
 
     /** Returns the id of the next edge */
     EqualityEdgeId getNext() const { return d_nextId; }
@@ -418,6 +441,11 @@ class EqualityEngine : public context::ContextNotifyObj, protected EnvObj
 
     /** The reason of this edge */
     TNode getReason() const { return d_reason; }
+
+    /** Is this equality edge redundant */
+    bool isRedundant() const { return d_isRedundant; }
+
+    uint32_t getLevel() const { return d_level; }
   };/* class EqualityEngine::EqualityEdge */
 
   /**
@@ -432,6 +460,11 @@ class EqualityEngine : public context::ContextNotifyObj, protected EnvObj
    */
   std::string edgesToString(EqualityEdgeId edgeId) const;
 
+  std::vector<int> d_treeOptEdgeWeights;
+  std::vector<int> d_greedyEdgeWeights;
+
+  std::map<std::pair<EqualityNodeId, EqualityNodeId>, uint32_t> d_edgeLevels;
+
   /**
    * Map from a node to its first edge in the equality graph. Edges are added to the front of the
    * list which makes the insertion/backtracking easy.
@@ -439,7 +472,7 @@ class EqualityEngine : public context::ContextNotifyObj, protected EnvObj
   std::vector<EqualityEdgeId> d_equalityGraph;
 
   /** Add an edge to the equality graph */
-  void addGraphEdge(EqualityNodeId t1, EqualityNodeId t2, unsigned type, TNode reason);
+  void addGraphEdge(EqualityNodeId t1, EqualityNodeId t2, unsigned type, TNode reason, bool isRedundant);
 
   /** Returns the equality node of the given node */
   EqualityNode& getEqualityNode(TNode node);
@@ -606,6 +639,19 @@ class EqualityEngine : public context::ContextNotifyObj, protected EnvObj
                          EqualityNodeId id2,
                          EqProof* eqp) const;
 
+  bool keepRedundantEqualities() const;
+
+  int shortestPath(EqualityNodeId start,
+                   EqualityNodeId end,
+                   uint32_t maxLevel,
+                   const std::vector<int>& edgeWeights) const;
+
+  void computeTreeOptWeights();
+
+  void computeGreedyWeights();
+
+  int estimateTreeSize(EqualityNodeId start, EqualityNodeId end, uint32_t maxLevel);
+
   /**
    * Get an explanation of the equality t1 = t2. Returns the asserted equalities
    * that imply t1 = t2. Returns TNodes as the assertion equalities should be
@@ -623,8 +669,20 @@ class EqualityEngine : public context::ContextNotifyObj, protected EnvObj
       EqualityEdgeId t1Id,
       EqualityNodeId t2Id,
       std::vector<TNode>& equalities,
-      std::map<std::pair<EqualityNodeId, EqualityNodeId>, EqProof*>& cache,
-      EqProof* eqp) const;
+      uint32_t level,
+      std::map<std::pair<EqualityNodeId, EqualityNodeId>, std::pair<uint32_t, EqProof*>>& cache,
+      EqProof* eqp,
+      ExplainAlgorithm algo);
+
+  void getExplanationImpl(
+      EqualityNodeId t1Id,
+      EqualityNodeId t2Id,
+      int fuel,
+      uint32_t level,
+      const std::vector<int>& proofSizeEstimates,
+      std::vector<TNode>& equalities,
+      std::map<std::pair<EqualityNodeId, EqualityNodeId>, std::pair<uint32_t, EqProof*>>& cache,
+      EqProof* eqp);
 
   /**
    * Print the equality graph.

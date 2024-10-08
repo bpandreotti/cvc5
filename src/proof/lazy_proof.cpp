@@ -92,7 +92,11 @@ std::shared_ptr<ProofNode> LazyCDProof::getProofFor(Node fact)
         // we don't touch such proofs.
         Trace("lazy-cdproof") << "...skip unowned proof" << std::endl;
       }
-      else if (cur->getRule() == ProofRule::ASSUME)
+      else if (cur->getRule() == ProofRule::ASSUME
+               && std::find(d_blockedAssumptions.begin(),
+                            d_blockedAssumptions.end(),
+                            cfact)
+                      == d_blockedAssumptions.end())
       {
         bool isSym = false;
         ProofGenerator* pg = getGeneratorFor(cfact, isSym);
