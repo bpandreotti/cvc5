@@ -168,6 +168,14 @@ name   = "Proof"
   help       = "Indicates if the dot proof will be printed as a DAG or as a tree"
 
 [[option]]
+  name       = "produceFinalProof"
+  category   = "regular"
+  long       = "produce-final-proof"
+  type       = "bool"
+  default    = "false"
+  help       = "produce final proof regardless of printing or checking it"
+
+[[option]]
   name       = "printDotClusters"
   category   = "expert"
   long       = "print-dot-clusters"
