@@ -1412,6 +1412,7 @@ int EqualityEngine::shortestPath(EqualityNodeId start,
     if (seen.count(currentNode)) {
       continue;
     }
+    seen.insert(currentNode);
 
     if (currentNode == end) {
       return current.d_distFromSource;
