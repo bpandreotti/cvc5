@@ -114,7 +114,7 @@ EqualityEngine::EqualityEngine(Env& env,
       d_applicationLookupsCount(c, 0),
       d_nodesCount(c, 0),
       d_assertedEqualitiesCount(c, 0),
-      d_redundantEqualitiesCount(0),
+      d_extraEqualitiesCount(c, 0),
       d_equalityTriggersCount(c, 0),
       d_subtermEvaluatesSize(c, 0),
       d_stats(statisticsRegistry(), name + "::"),
@@ -147,7 +147,7 @@ EqualityEngine::EqualityEngine(Env& env,
       d_applicationLookupsCount(c, 0),
       d_nodesCount(c, 0),
       d_assertedEqualitiesCount(c, 0),
-      d_redundantEqualitiesCount(0),
+      d_extraEqualitiesCount(c, 0),
       d_equalityTriggersCount(c, 0),
       d_subtermEvaluatesSize(c, 0),
       d_stats(statisticsRegistry(), name + "::"),
@@ -876,16 +876,17 @@ void EqualityEngine::backtrack() {
 
   Trace("equality::backtrack") << "backtracking" << std::endl;
 
+  auto expectedEdgesCount = 2 * (d_assertedEqualitiesCount + d_extraEqualitiesCount);
   // If we need to backtrack then do it
-  if (d_assertedEqualitiesCount < d_assertedEqualities.size()) {
+  if (d_assertedEqualitiesCount < d_assertedEqualities.size() || expectedEdgesCount < d_equalityEdges.size()) {
 
     // Clear the propagation queue
     while (!d_propagationQueue.empty()) {
       d_propagationQueue.pop_front();
     }
 
-    d_treeOptEdgeWeights.resize(2 * d_assertedEqualitiesCount);
-    d_greedyEdgeWeights.resize(2 * d_assertedEqualitiesCount);
+    d_treeOptEdgeWeights.resize(expectedEdgesCount);
+    d_greedyEdgeWeights.resize(expectedEdgesCount);
 
     Trace("equality") << d_name << "::eq::backtrack(): nodes" << std::endl;
 
@@ -893,7 +894,7 @@ void EqualityEngine::backtrack() {
       // Get the ids of the merged classes
       Equality& eq = d_assertedEqualities[i];
       // Undo the merge
-      if (eq.d_lhs != null_id && eq.d_causedMerge)
+      if (eq.d_lhs != null_id)
       {
         undoMerge(
             d_equalityNodes[eq.d_lhs], d_equalityNodes[eq.d_rhs], eq.d_rhs);
@@ -904,7 +905,7 @@ void EqualityEngine::backtrack() {
 
     Trace("equality") << d_name << "::eq::backtrack(): edges" << std::endl;
 
-    for (int i = (int)d_equalityEdges.size() - 2, i_end = (int)(2*d_assertedEqualitiesCount); i >= i_end; i -= 2) {
+    for (int i = (int)d_equalityEdges.size() - 2; i >= (int)expectedEdgesCount; i -= 2) {
       EqualityEdge& edge1 = d_equalityEdges[i];
       EqualityEdge& edge2 = d_equalityEdges[i | 1];
       EqualityNodeId node1 = edge1.getNodeId();
@@ -916,13 +917,12 @@ void EqualityEngine::backtrack() {
       // Remove equality from asserted equalities set
       d_assertedEqualityPairs.erase(std::make_pair(node1, node2));
       d_assertedEqualityPairs.erase(std::make_pair(node2, node1));
-      if (edge1.isRedundant()) d_redundantEqualitiesCount--;
 
       d_edgeLevels.erase(std::make_pair(node1, node2));
       d_edgeLevels.erase(std::make_pair(node2, node1));
     }
 
-    d_equalityEdges.resize(2 * d_assertedEqualitiesCount);
+    d_equalityEdges.resize(expectedEdgesCount);
   }
 
   if (d_triggerTermSetUpdates.size() > d_triggerTermSetUpdatesSize) {
@@ -1009,7 +1009,7 @@ void EqualityEngine::addGraphEdge(EqualityNodeId t1, EqualityNodeId t2, unsigned
                     << d_nodes[t1] << ", {" << t2 << "} " << d_nodes[t2] << ","
                     << reason << ")" << std::endl;
 
-  uint32_t level =  d_assertedEqualitiesCount + 1;
+  uint32_t level =  d_assertedEqualitiesCount + d_extraEqualitiesCount + 1;
   EqualityEdgeId edge = d_equalityEdges.size();
   d_equalityEdges.push_back(EqualityEdge(t2, d_equalityGraph[t1], type, reason, isRedundant, level));
   d_equalityEdges.push_back(EqualityEdge(t1, d_equalityGraph[t2], type, reason, isRedundant, level));
@@ -2217,7 +2217,6 @@ void EqualityEngine::propagate() {
     }
     d_assertedEqualityPairs.insert(key);
     d_assertedEqualityPairs.insert(std::make_pair(current.d_t2Id, current.d_t1Id));
-    if (isRedundant) d_redundantEqualitiesCount++;
 
     Trace("equality::internal") << d_name << "::eq::propagate(): t1: " << (d_isInternal[t1classId] ? "internal" : "proper") << std::endl;
     Trace("equality::internal") << d_name << "::eq::propagate(): t2: " << (d_isInternal[t2classId] ? "internal" : "proper") << std::endl;
@@ -2233,13 +2232,18 @@ void EqualityEngine::propagate() {
     addGraphEdge(
         current.d_t1Id, current.d_t2Id, current.d_type, current.d_reason, isRedundant);
 
+    if (isRedundant) {
+      d_extraEqualitiesCount = d_extraEqualitiesCount + 1;
+      continue;
+    }
+
     // If constants are being merged we're done
     if (d_isConstant[t1classId] && d_isConstant[t2classId]) {
       // When merging constants we are inconsistent, hence done
       d_done = true;
       // But in order to keep invariants (edges = 2*equalities) we put an equalities in
       // Note that we can explain this merge as we have a graph edge
-      d_assertedEqualities.push_back(Equality(null_id, null_id, !isRedundant));
+      d_assertedEqualities.push_back(Equality(null_id, null_id));
       d_assertedEqualitiesCount = d_assertedEqualitiesCount + 1;
       // Notify
       d_notify->eqNotifyConstantTermMerge(d_nodes[t1classId],
@@ -2275,17 +2279,11 @@ void EqualityEngine::propagate() {
       mergeInto = t2classId;
     }
 
-    if (isRedundant) {
-      d_assertedEqualities.push_back(Equality(null_id, null_id, false));
-      d_assertedEqualitiesCount = d_assertedEqualitiesCount + 1;
-      continue;
-    }
-
     if (mergeInto == t2classId) {
       Trace("equality") << d_name << "::eq::propagate(): merging "
                         << d_nodes[current.d_t1Id] << " into "
                         << d_nodes[current.d_t2Id] << std::endl;
-      d_assertedEqualities.push_back(Equality(t2classId, t1classId, !isRedundant));
+      d_assertedEqualities.push_back(Equality(t2classId, t1classId));
       d_assertedEqualitiesCount = d_assertedEqualitiesCount + 1;
       if (!merge(node2, node1, triggers)) {
         d_done = true;
@@ -2294,7 +2292,7 @@ void EqualityEngine::propagate() {
       Trace("equality") << d_name << "::eq::propagate(): merging "
                         << d_nodes[current.d_t2Id] << " into "
                         << d_nodes[current.d_t1Id] << std::endl;
-      d_assertedEqualities.push_back(Equality(t1classId, t2classId, !isRedundant));
+      d_assertedEqualities.push_back(Equality(t1classId, t2classId));
       d_assertedEqualitiesCount = d_assertedEqualitiesCount + 1;
     if (!merge(node1, node2, triggers)) {
         d_done = true;
@@ -2411,7 +2409,7 @@ std::string EqualityEngine::debugPrintEqc() const
 void EqualityEngine::debugPrintEqualityCounts() const
 {
   Trace("cc-experiments") << "equalities count: " << d_assertedEqualitiesCount
-                          << "," << d_redundantEqualitiesCount << std::endl;
+                          << "," << d_extraEqualitiesCount << std::endl;
 }
 
 bool EqualityEngine::areEqual(TNode t1, TNode t2) const {
