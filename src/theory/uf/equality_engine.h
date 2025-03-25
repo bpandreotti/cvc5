@@ -372,8 +372,8 @@ class EqualityEngine : public context::ContextNotifyObj, protected EnvObj
   /** Number of asserted equalities we have so far */
   context::CDO<DefaultSizeType> d_assertedEqualitiesCount;
 
-  /** Number of redundant equalities added */
-  DefaultSizeType d_redundantEqualitiesCount;
+  /** Number of extra equalities added */
+  context::CDO<DefaultSizeType> d_extraEqualitiesCount;
 
   /** Memory for the use-list nodes */
   std::vector<UseListNode> d_useListNodes;
@@ -387,11 +387,9 @@ class EqualityEngine : public context::ContextNotifyObj, protected EnvObj
     EqualityNodeId d_lhs;
     /** Right hand side of the equality */
     EqualityNodeId d_rhs;
-    /** Has this equality caused a merge **/
-    bool d_causedMerge;
     /** Equality constructor */
-    Equality(EqualityNodeId l = null_id, EqualityNodeId r = null_id, bool causedMerge = false)
-        : d_lhs(l), d_rhs(r), d_causedMerge(causedMerge)
+    Equality(EqualityNodeId l = null_id, EqualityNodeId r = null_id)
+        : d_lhs(l), d_rhs(r)
     {
     }
   };/* struct EqualityEngine::Equality */
