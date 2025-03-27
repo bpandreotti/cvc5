@@ -37,7 +37,12 @@ EqualityEngine::Statistics::Statistics(StatisticsRegistry& sr,
     : d_mergesCount(sr.registerInt(name + "mergesCount")),
       d_termsCount(sr.registerInt(name + "termsCount")),
       d_functionTermsCount(sr.registerInt(name + "functionTermsCount")),
-      d_constantTermsCount(sr.registerInt(name + "constantTermsCount"))
+      d_constantTermsCount(sr.registerInt(name + "constantTermsCount")),
+      d_totalEdges(sr.registerInt(name + "totalEdges")),
+      d_redundantEdges(sr.registerInt(name + "redundantEdges")),
+      d_totalExplanationSize(sr.registerInt(name + "totalExplanationSize")),
+      d_redundantExplanationSize(
+          sr.registerInt(name + "redundantExplanationSize"))
 {
 }
 
@@ -754,6 +759,12 @@ bool EqualityEngine::merge(EqualityNode& class1, EqualityNode& class2, std::vect
   // Now merge the lists
   class1.merge<true>(class2);
 
+  // After merging, add extra redundant edges
+  if (keepRedundantEqualities())
+  {
+    computeExtraRedundantEdges();
+  }
+
   // notify the theory
   if (doNotify) {
     d_notify->eqNotifyMerge(n1, n2);
@@ -1008,6 +1019,9 @@ void EqualityEngine::addGraphEdge(EqualityNodeId t1, EqualityNodeId t2, unsigned
   Trace("equality") << d_name << "::eq::addGraphEdge({" << t1 << "} "
                     << d_nodes[t1] << ", {" << t2 << "} " << d_nodes[t2] << ","
                     << reason << ")" << std::endl;
+
+  d_stats.d_totalEdges += 1;
+  d_stats.d_redundantEdges += (int)isRedundant;
 
   uint32_t level =  d_assertedEqualitiesCount + d_extraEqualitiesCount + 1;
   EqualityEdgeId edge = d_equalityEdges.size();
@@ -1522,6 +1536,91 @@ int EqualityEngine::estimateTreeSize(EqualityNodeId start, EqualityNodeId end, u
     return shortestPath(start, end, maxLevel, std::vector<int>());
 }
 
+void EqualityEngine::computeExtraRedundantEdges()
+{
+  // Arbitrary linear limit
+  auto extraEdgesLimit = d_assertedEqualitiesCount * 2;
+  if (d_extraEqualitiesCount < extraEdgesLimit)
+  {
+    // We define the canonical form of a node f(a, b) as the pair (find(a),
+    // find(b)). For each equivalence class, we will find each pair of distinct
+    // nodes that have the same canonical form, and add a congruence edge
+    // between them.
+
+    // Find first equivalence class
+    EqualityNodeId eqClass = 0;
+    while (eqClass < d_nodesCount
+           && (d_isInternal[eqClass]
+               || getEqualityNode(eqClass).getFind() != eqClass))
+    {
+      ++eqClass;
+    }
+
+    while (eqClass < d_nodesCount && d_extraEqualitiesCount < extraEdgesLimit)
+    {
+      // This maps a pair to a vector of all the nodes that have this
+      // pair as their canonical form
+      std::map<std::pair<EqualityNodeId, EqualityNodeId>,
+               std::vector<EqualityNodeId>>
+          canonicalFormMap;
+
+      EqualityNodeId node = eqClass;
+      while (true)
+      {
+        const FunctionApplication& app = d_applications[node].d_original;
+        if (!app.isNull())
+        {
+          EqualityNodeId a = getEqualityNode(app.d_a).getFind();
+          EqualityNodeId b = getEqualityNode(app.d_b).getFind();
+          auto can = std::make_pair(a, b);
+
+          if (canonicalFormMap.find(can) != canonicalFormMap.end())
+          {
+            for (EqualityNodeId& otherNode : canonicalFormMap[can])
+            {
+              if (d_edgeLevels.find(std::make_pair(node, otherNode))
+                  == d_edgeLevels.end())
+              {
+                continue;
+              }
+              addGraphEdge(node,
+                           otherNode,
+                           MERGED_THROUGH_CONGRUENCE,
+                           TNode::null(),
+                           true);
+              d_extraEqualitiesCount = d_extraEqualitiesCount + 1;
+              if (d_extraEqualitiesCount >= extraEdgesLimit) break;
+            }
+            if (d_extraEqualitiesCount >= extraEdgesLimit) break;
+          }
+          else
+          {
+            canonicalFormMap[can] = std::vector<EqualityNodeId>{node};
+          }
+        }
+
+        // Go to next node in class
+        do
+        {
+          node = getEqualityNode(node).getNext();
+        } while (d_isInternal[node]);
+
+        // If we looped back to the first node, we are done with this class
+        if (node == eqClass) break;
+      }
+
+      // Go to next equivalence class
+      ++eqClass;
+      while (eqClass < d_nodesCount
+             && (d_isInternal[eqClass]
+                 || getEqualityNode(eqClass).getFind() != eqClass))
+      {
+        ++eqClass;
+      }
+    }
+  }
+}
+
 void EqualityEngine::getExplanation(
     EqualityNodeId t1Id,
     EqualityNodeId t2Id,
@@ -1719,6 +1818,10 @@ void EqualityEngine::getExplanationImpl(
 
           // Reconstruct the path
           do {
+            d_stats.d_totalExplanationSize += 1;
+            d_stats.d_redundantExplanationSize +=
+                (int)d_equalityEdges[currentEdge].isRedundant();
+
             // The current node
             currentNode = d_equalityEdges[currentEdge ^ 1].getNodeId();
             EqualityNodeId edgeNode = d_equalityEdges[currentEdge].getNodeId();

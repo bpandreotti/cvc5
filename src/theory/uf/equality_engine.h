@@ -296,6 +296,11 @@ class EqualityEngine : public context::ContextNotifyObj, protected EnvObj
     /** Number of constant terms managed by the system */
     IntStat d_constantTermsCount;
 
+    IntStat d_totalEdges;
+    IntStat d_redundantEdges;
+    IntStat d_totalExplanationSize;
+    IntStat d_redundantExplanationSize;
+
     Statistics(StatisticsRegistry& sr, const std::string& name);
   };
 
@@ -649,6 +654,8 @@ class EqualityEngine : public context::ContextNotifyObj, protected EnvObj
   void computeGreedyWeights();
 
   int estimateTreeSize(EqualityNodeId start, EqualityNodeId end, uint32_t maxLevel);
+
+  void computeExtraRedundantEdges();
 
   /**
    * Get an explanation of the equality t1 = t2. Returns the asserted equalities
