@@ -759,12 +759,6 @@ bool EqualityEngine::merge(EqualityNode& class1, EqualityNode& class2, std::vect
   // Now merge the lists
   class1.merge<true>(class2);
 
-  // After merging, add extra redundant edges
-  if (keepRedundantEqualities())
-  {
-    computeExtraRedundantEdges();
-  }
-
   // notify the theory
   if (doNotify) {
     d_notify->eqNotifyMerge(n1, n2);
@@ -1578,8 +1572,9 @@ void EqualityEngine::computeExtraRedundantEdges()
           {
             for (EqualityNodeId& otherNode : canonicalFormMap[can])
             {
+              if (node == otherNode) continue;
               if (d_edgeLevels.find(std::make_pair(node, otherNode))
-                  == d_edgeLevels.end())
+                  != d_edgeLevels.end())
               {
                 continue;
               }
@@ -1630,6 +1625,9 @@ void EqualityEngine::getExplanation(
     EqProof* eqp,
     ExplainAlgorithm algo)
 {
+  if (keepRedundantEqualities())
+    computeExtraRedundantEdges();
+
   if (algo == ExplainAlgorithm::Vanilla)
   {
     getExplanationImpl(
