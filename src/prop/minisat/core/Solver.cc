@@ -347,6 +347,14 @@ CRef Solver::reason(Var x) {
       explLevel = std::max(explLevel, intro_level(var(explanation[i])));
 
       Assert(value(explanation[i]) != l_Undef);
+      if (i != 0
+          && trail_index(var(explanation[0]))
+                 <= trail_index(var(explanation[i])))
+      {
+        auto a = d_proxy->getNode(MinisatSatSolver::toSatLiteral(explanation[0]));
+        auto b = d_proxy->getNode(MinisatSatSolver::toSatLiteral(explanation[i]));
+        Trace("test") << a << " " << b << std::endl;
+      }
       Assert(i == 0
              || trail_index(var(explanation[0]))
                     > trail_index(var(explanation[i])));

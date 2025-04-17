@@ -668,7 +668,7 @@ bool EqualityEngine::merge(EqualityNode& class1, EqualityNode& class2, std::vect
     getDisequalities(!class2isConstant, class1Id, class2OnlyTags, class1disequalitiesToNotify);
   }
 
-  while (d_findHistory.size() < d_assertedEqualitiesCount + 1)
+  while (d_findHistory.size() < d_context->getLevel() + 1)
   {
     std::vector<EqualityNodeId> previous = d_findHistory.empty()
                                                ? std::vector<EqualityNodeId>()
@@ -691,7 +691,7 @@ bool EqualityEngine::merge(EqualityNode& class1, EqualityNode& class2, std::vect
     // Update it's find to class1 id
     Trace("equality") << d_name << "::eq::merge(" << class1.getFind() << "," << class2.getFind() << "): " << currentId << "->" << class1Id << std::endl;
     currentNode.setFind(class1Id);
-    d_findHistory[d_assertedEqualitiesCount][currentId] = class1Id;
+    d_findHistory[d_context->getLevel()][currentId] = class1Id;
 
     // Go through the triggers and inform if necessary
     TriggerId currentTrigger = d_nodeTriggers[currentId];
@@ -904,7 +904,7 @@ void EqualityEngine::backtrack() {
       d_propagationQueue.pop_front();
     }
 
-    d_findHistory.resize(d_assertedEqualitiesCount + 1);
+    d_findHistory.resize(d_context->getLevel() + 1);
     d_treeOptEdgeWeights.resize(expectedEdgesCount);
     d_greedyEdgeWeights.resize(expectedEdgesCount);
 
@@ -1027,12 +1027,14 @@ void EqualityEngine::backtrack() {
 void EqualityEngine::addGraphEdge(EqualityNodeId t1, EqualityNodeId t2, unsigned type, TNode reason, bool isRedundant) {
   Trace("equality") << d_name << "::eq::addGraphEdge({" << t1 << "} "
                     << d_nodes[t1] << ", {" << t2 << "} " << d_nodes[t2] << ","
-                    << reason << ")" << std::endl;
+                    << reason
+                    << " " << d_done
+                    << ")" << std::endl;
 
   d_stats.d_totalEdges += 1;
   d_stats.d_redundantEdges += (int)isRedundant;
 
-  uint32_t level = d_assertedEqualitiesCount + 1;
+  uint32_t level = d_context->getLevel();
   EqualityEdgeId edge = d_equalityEdges.size();
   d_equalityEdges.push_back(EqualityEdge(t2, d_equalityGraph[t1], type, reason, isRedundant, level));
   d_equalityEdges.push_back(EqualityEdge(t1, d_equalityGraph[t2], type, reason, isRedundant, level));
@@ -1172,7 +1174,7 @@ void EqualityEngine::explainEquality(TNode t1,
   std::map<std::pair<EqualityNodeId, EqualityNodeId>, std::pair<uint32_t, EqProof*>> cache;
   if (polarity) {
     // Get the explanation
-    getExplanation(t1Id, t2Id, equalities, d_assertedEqualitiesCount, cache, eqp, algo);
+    getExplanation(t1Id, t2Id, equalities, d_context->getLevel(), cache, eqp, algo);
   } else {
     if (eqp) {
       eqp->d_id = MERGED_THROUGH_TRANS;
@@ -1206,7 +1208,7 @@ void EqualityEngine::explainEquality(TNode t1,
       getExplanation(toExplain.first,
                      toExplain.second,
                      equalities,
-                     d_assertedEqualitiesCount,
+                     d_context->getLevel(),
                      cache,
                      eqpc.get(),
                      algo);
@@ -1337,7 +1339,7 @@ void EqualityEngine::explainPredicate(TNode p,
   getExplanation(getNodeId(p),
                  polarity ? d_trueId : d_falseId,
                  assertions,
-                 d_assertedEqualitiesCount,
+                 d_context->getLevel(),
                  cache,
                  eqp,
                  algo);
@@ -1468,6 +1470,7 @@ int EqualityEngine::shortestPath(EqualityNodeId start,
 
       if (weight == std::numeric_limits<int>::max()) continue;
       if (d_equalityEdges[edge].getLevel() > maxLevel && d_equalityEdges[edge].isRedundant()) continue;
+      if (d_equalityEdges[edge].isRedundant() && d_equalityEdges[edge].getReasonType() == MERGED_THROUGH_EQUALITY) continue;
 
       auto newDist = (currentDist > std::numeric_limits<int>::max() - weight)
                          ? std::numeric_limits<int>::max()
@@ -1645,6 +1648,7 @@ void EqualityEngine::getExplanation(
     EqProof* eqp,
     options::UfAlgorithmMode algo)
 {
+  Trace("bruno") << "root level: " << d_context->getLevel() << " " << level << std::endl;
   if (keepRedundantEqualities())
     computeExtraRedundantEdges();
 
@@ -1678,7 +1682,9 @@ void EqualityEngine::getExplanationImpl(
       EqProof* eqp)
 {
   // Possibly downgrade level to the level in which t1 and t2 were merged
-  level = std::min(getMergedLevel(t1Id, t2Id), level);
+  auto newlevel = std::min(getMergedLevel(t1Id, t2Id), level);
+  Trace("bruno") << "updated level: " << d_context->getLevel() << " " << level << " " << newlevel << std::endl;
+  level = newlevel;
 
   if (fuel <= 0) {
     return getExplanationImpl(
@@ -1814,9 +1820,11 @@ void EqualityEngine::getExplanationImpl(
 
       bool isBackEdge = (currentEdgeId | 1u) == (current.d_edgeId | 1u);
       bool isForbidden = edge.getLevel() > level && edge.isRedundant();
+      bool isPureRedundant =
+          edge.isRedundant() && edge.getReasonType() == MERGED_THROUGH_EQUALITY;
 
       // If not just the backwards edge, or forbidden edge
-      if (!isBackEdge && !isForbidden)
+      if (!isBackEdge && !isForbidden && !isPureRedundant)
       {
         Trace("equality") << d_name
                           << "::eq::getExplanation(): currentEdge = ({"
@@ -2304,6 +2312,7 @@ void EqualityEngine::propagate() {
   Trace("equality") << d_name << "::eq::propagate()" << std::endl;
 
   while (!d_propagationQueue.empty() || !d_evaluationQueue.empty()) {
+    Trace("bruno") << "propagating at level " << d_context->getLevel() << std::endl;
 
     if (d_done) {
       // If we're done, just empty the queue
@@ -2502,6 +2511,9 @@ void EqualityEngine::debugPrintGraph() const
       const EqualityEdge& edge = d_equalityEdges[edgeId];
       Trace("equality::internal")
           << " [" << edge.getNodeId() << "] " << d_nodes[edge.getNodeId()]
+          << (edge.isRedundant() ? "r" : "")
+          << (edge.getReasonType() == MERGED_THROUGH_CONGRUENCE ? "c" : "")
+          << "@" << edge.getLevel() << " "
           << ":" << edge.getReason();
       edgeId = edge.getNext();
     }
