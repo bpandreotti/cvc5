@@ -514,18 +514,6 @@ void ProofEqEngine::explainWithProof(Node lit,
   {
     return;
   }
-  EqualityEngine::ExplainAlgorithm explainAlgo;
-  switch (options().uf.ufAlgorithmMode) {
-    case options::UfAlgorithmMode::VANILLA:
-      explainAlgo = EqualityEngine::ExplainAlgorithm::Vanilla;
-      break;
-    case options::UfAlgorithmMode::TREE_OPT:
-      explainAlgo = EqualityEngine::ExplainAlgorithm::TreeOpt;
-      break;
-    default:
-      explainAlgo = EqualityEngine::ExplainAlgorithm::Greedy;
-      break;
-  }
   bool isRunningExperiment = options().uf.ufAlgorithmMode == options::UfAlgorithmMode::ALL;
 
   std::shared_ptr<eq::EqProof> pf = std::make_shared<eq::EqProof>();
@@ -548,18 +536,18 @@ void ProofEqEngine::explainWithProof(Node lit,
       AlwaysAssert(d_ee.areDisequal(atom[0], atom[1], true));
     }
     if (isRunningExperiment) {
-      d_ee.explainEquality(atom[0], atom[1], polarity, tassumps, pf.get(), EqualityEngine::ExplainAlgorithm::Vanilla);
+      d_ee.explainEquality(atom[0], atom[1], polarity, tassumps, options::UfAlgorithmMode::VANILLA, pf.get());
       auto greedyPf = eq::EqProof();
-      d_ee.explainEquality(atom[0], atom[1], polarity, tassumps, &greedyPf, EqualityEngine::ExplainAlgorithm::Greedy);
+      d_ee.explainEquality(atom[0], atom[1], polarity, tassumps, options::UfAlgorithmMode::GREEDY, &greedyPf);
       auto treeOptPf = eq::EqProof();
-      d_ee.explainEquality(atom[0], atom[1], polarity, tassumps, &treeOptPf, EqualityEngine::ExplainAlgorithm::TreeOpt);
+      d_ee.explainEquality(atom[0], atom[1], polarity, tassumps, options::UfAlgorithmMode::TREE_OPT, &treeOptPf);
       d_ee.debugPrintEqualityCounts();
       Trace("cc-experiments") << "proof sizes: "
                 << getEqProofSize(d_env, *pf.get()) << ","
                 << getEqProofSize(d_env, greedyPf) << ","
                 << getEqProofSize(d_env, treeOptPf) << std::endl;
     } else {
-      d_ee.explainEquality(atom[0], atom[1], polarity, tassumps, pf.get(), explainAlgo);
+      d_ee.explainEquality(atom[0], atom[1], polarity, tassumps, options().uf.ufAlgorithmMode, pf.get());
       d_ee.debugPrintEqualityCounts();
       Trace("cc-experiments") << "proof sizes: " << getEqProofSize(d_env, *pf.get()) << std::endl;
     }
@@ -568,18 +556,18 @@ void ProofEqEngine::explainWithProof(Node lit,
   {
     Assert(d_ee.hasTerm(atom));
     if (isRunningExperiment) {
-      d_ee.explainPredicate(atom, polarity, tassumps, pf.get(), EqualityEngine::ExplainAlgorithm::Vanilla);
+      d_ee.explainPredicate(atom, polarity, tassumps, options::UfAlgorithmMode::VANILLA, pf.get());
       auto greedyPf = eq::EqProof();
-      d_ee.explainPredicate(atom, polarity, tassumps, &greedyPf, EqualityEngine::ExplainAlgorithm::Greedy);
+      d_ee.explainPredicate(atom, polarity, tassumps, options::UfAlgorithmMode::GREEDY, &greedyPf);
       auto treeOptPf = eq::EqProof();
-      d_ee.explainPredicate(atom, polarity, tassumps, &treeOptPf, EqualityEngine::ExplainAlgorithm::TreeOpt);
+      d_ee.explainPredicate(atom, polarity, tassumps, options::UfAlgorithmMode::TREE_OPT, &treeOptPf);
       d_ee.debugPrintEqualityCounts();
       Trace("cc-experiments") << "proof sizes: "
                 << getEqProofSize(d_env, *pf.get()) << ","
                 << getEqProofSize(d_env, greedyPf) << ","
                 << getEqProofSize(d_env, treeOptPf) << std::endl;
     } else {
-      d_ee.explainPredicate(atom, polarity, tassumps, pf.get(), explainAlgo);
+      d_ee.explainPredicate(atom, polarity, tassumps, options().uf.ufAlgorithmMode, pf.get());
       d_ee.debugPrintEqualityCounts();
       Trace("cc-experiments") << "proof sizes: " << getEqProofSize(d_env, *pf.get()) << std::endl;
     }
