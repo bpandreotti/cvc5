@@ -128,3 +128,12 @@ name   = "Uninterpreted Functions Theory"
 [[option.mode.ALL]]
   name = "all"
   help = "Use all three algorithms, and print the proof sizes for each of them."
+
+[[option]]
+  name       = "ufFuel"
+  category   = "undocumented"
+  long       = "uf-fuel=N"
+  type       = "int64_t"
+  default    = "10"
+  minimum    = "0"
+  help       = "Fuel used for greedy uf algorithm"
