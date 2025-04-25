@@ -1643,7 +1643,7 @@ void EqualityEngine::getExplanation(
   {
     computeGreedyWeights();
     getExplanationImpl(
-        t1Id, t2Id, 10, level, d_greedyEdgeWeights, equalities, cache, eqp);
+        t1Id, t2Id, options().uf.ufFuel, level, d_greedyEdgeWeights, equalities, cache, eqp);
   }
 }
 
