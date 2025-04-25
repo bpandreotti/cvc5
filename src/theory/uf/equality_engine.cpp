@@ -1438,7 +1438,7 @@ int EqualityEngine::shortestPath(EqualityNodeId start,
         weight = edgeWeights[edge];
 
       if (weight == std::numeric_limits<int>::max()) continue;
-      if (d_equalityEdges[edge].getLevel() > maxLevel) continue;
+      if (d_equalityEdges[edge].getLevel() > maxLevel && d_equalityEdges[edge].isRedundant()) continue;
 
       auto next = d_equalityEdges[edge].getNodeId();
 
@@ -1794,7 +1794,7 @@ void EqualityEngine::getExplanationImpl(
       const EqualityEdge& edge = d_equalityEdges[currentEdgeId];
 
       bool isBackEdge = (currentEdgeId | 1u) == (current.d_edgeId | 1u);
-      bool isForbidden = edge.getLevel() > level;
+      bool isForbidden = edge.getLevel() > level && edge.isRedundant();
       bool isDirectRedundant =
           currentNodeId == t1Id && edge.getNodeId() == t2Id
           && edge.isRedundant()
