@@ -1133,8 +1133,8 @@ void EqualityEngine::explainEquality(TNode t1,
                                      TNode t2,
                                      bool polarity,
                                      std::vector<TNode>& equalities,
-                                     EqProof* eqp,
-                                     ExplainAlgorithm algo)
+                                     options::UfAlgorithmMode algo,
+                                     EqProof* eqp)
 {
   Trace("pf::ee") << d_name << "::eq::explainEquality(" << t1 << ", " << t2
                   << ", " << (polarity ? "true" : "false") << ")"
@@ -1306,8 +1306,8 @@ void EqualityEngine::explainEquality(TNode t1,
 void EqualityEngine::explainPredicate(TNode p,
                                       bool polarity,
                                       std::vector<TNode>& assertions,
-                                      EqProof* eqp,
-                                      ExplainAlgorithm algo)
+                                      options::UfAlgorithmMode algo,
+                                      EqProof* eqp)
 {
   Trace("equality") << d_name << "::eq::explainPredicate(" << p << ")"
                     << std::endl;
@@ -1350,11 +1350,11 @@ void EqualityEngine::explainLit(TNode lit,
       // no need to explain reflexivity
       return;
     }
-    explainEquality(atom[0], atom[1], polarity, tassumptions);
+    explainEquality(atom[0], atom[1], polarity, tassumptions, options().uf.ufAlgorithmMode);
   }
   else
   {
-    explainPredicate(atom, polarity, tassumptions);
+    explainPredicate(atom, polarity, tassumptions, options().uf.ufAlgorithmMode);
   }
   // ensure that duplicates are removed
   for (TNode a : tassumptions)
@@ -1623,17 +1623,17 @@ void EqualityEngine::getExplanation(
     uint32_t level,
     std::map<std::pair<EqualityNodeId, EqualityNodeId>, std::pair<uint32_t, EqProof*>>& cache,
     EqProof* eqp,
-    ExplainAlgorithm algo)
+    options::UfAlgorithmMode algo)
 {
   if (keepRedundantEqualities())
     computeExtraRedundantEdges();
 
-  if (algo == ExplainAlgorithm::Vanilla)
+  if (algo == options::UfAlgorithmMode::VANILLA)
   {
     getExplanationImpl(
         t1Id, t2Id, std::numeric_limits<int>::max(), level, std::vector<int>(), equalities, cache, eqp);
   }
-  else if (algo == ExplainAlgorithm::TreeOpt)
+  else if (algo == options::UfAlgorithmMode::TREE_OPT)
   {
     computeTreeOptWeights();
     getExplanationImpl(

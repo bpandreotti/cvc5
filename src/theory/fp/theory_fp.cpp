@@ -820,11 +820,11 @@ TrustNode TheoryFp::explain(TNode n)
   TNode atom = polarity ? n : n[0];
   if (atom.getKind() == Kind::EQUAL)
   {
-    d_equalityEngine->explainEquality(atom[0], atom[1], polarity, assumptions);
+    d_equalityEngine->explainEquality(atom[0], atom[1], polarity, assumptions, options().uf.ufAlgorithmMode);
   }
   else
   {
-    d_equalityEngine->explainPredicate(atom, polarity, assumptions);
+    d_equalityEngine->explainPredicate(atom, polarity, assumptions, options().uf.ufAlgorithmMode);
   }
 
   // build conjunct

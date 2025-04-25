@@ -30,6 +30,7 @@
 #include "context/cdo.h"
 #include "expr/kind_map.h"
 #include "expr/node.h"
+#include "options/uf_options.h"
 #include "smt/env_obj.h"
 #include "theory/theory_id.h"
 #include "theory/uf/equality_engine_iterator.h"
@@ -200,12 +201,6 @@ class EqualityEngine : public context::ContextNotifyObj, protected EnvObj
                       TNode reason,
                       unsigned pid = MERGED_THROUGH_EQUALITY);
 
-  enum class ExplainAlgorithm
-  {
-    Vanilla,
-    TreeOpt,
-    Greedy,
-  };
 
   //--------------------end updates
   //--------------------------- explanation methods
@@ -218,8 +213,9 @@ class EqualityEngine : public context::ContextNotifyObj, protected EnvObj
                        TNode t2,
                        bool polarity,
                        std::vector<TNode>& assertions,
-                       EqProof* eqp = nullptr,
-                       ExplainAlgorithm algo = ExplainAlgorithm::Greedy);
+                       options::UfAlgorithmMode algo,
+                       EqProof* eqp = nullptr);
+
 
   /**
    * Get an explanation of the predicate being true or false.
@@ -229,8 +225,8 @@ class EqualityEngine : public context::ContextNotifyObj, protected EnvObj
   void explainPredicate(TNode p,
                         bool polarity,
                         std::vector<TNode>& assertions,
-                        EqProof* eqp = nullptr,
-                        ExplainAlgorithm algo = ExplainAlgorithm::Greedy);
+                        options::UfAlgorithmMode algo,
+                        EqProof* eqp = nullptr);
 
   /**
    * Explain literal, add its explanation to assumptions. This method does not
@@ -677,7 +673,7 @@ class EqualityEngine : public context::ContextNotifyObj, protected EnvObj
       uint32_t level,
       std::map<std::pair<EqualityNodeId, EqualityNodeId>, std::pair<uint32_t, EqProof*>>& cache,
       EqProof* eqp,
-      ExplainAlgorithm algo);
+      options::UfAlgorithmMode algo);
 
   void getExplanationImpl(
       EqualityNodeId t1Id,
