@@ -500,7 +500,7 @@ void TheoryArrays::visitAllLeaves(TNode reason, vector<TNode>& conjunctions)
     case Kind::NOT: conjunctions.push_back(reason); break;
     case Kind::EQUAL:
       d_equalityEngine->explainEquality(
-          reason[0], reason[1], true, conjunctions);
+          reason[0], reason[1], true, conjunctions, options().uf.ufAlgorithmMode);
       break;
     default: Unreachable();
   }
@@ -523,7 +523,7 @@ void TheoryArrays::weakEquivBuildCond(TNode node,
     if (index2.isNull())
     {
       // Null index means these two nodes became equal: explain the equality.
-      d_equalityEngine->explainEquality(node, pointer, true, conjunctions);
+      d_equalityEngine->explainEquality(node, pointer, true, conjunctions, options().uf.ufAlgorithmMode);
       node = pointer;
     }
     else if (!d_equalityEngine->areEqual(index, index2))
@@ -1404,7 +1404,7 @@ void TheoryArrays::postCheck(Effort level)
           conjunctions.push_back(lemma);
           if (r[1] != r2[1])
           {
-            d_equalityEngine->explainEquality(r[1], r2[1], true, conjunctions);
+            d_equalityEngine->explainEquality(r[1], r2[1], true, conjunctions, options().uf.ufAlgorithmMode);
           }
           // TODO: get smaller lemmas by eliminating shared parts of path
           weakEquivBuildCond(r[0], r[1], conjunctions);
