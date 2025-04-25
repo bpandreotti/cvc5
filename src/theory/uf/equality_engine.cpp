@@ -1312,8 +1312,8 @@ void EqualityEngine::explainEquality(TNode t1,
                                      TNode t2,
                                      bool polarity,
                                      std::vector<TNode>& equalities,
-                                     EqProof* eqp,
-                                     ExplainAlgorithm algo)
+                                     options::UfAlgorithmMode algo,
+                                     EqProof* eqp)
 {
   Trace("pf::ee") << d_name << "::eq::explainEquality(" << t1 << ", " << t2
                   << ", " << (polarity ? "true" : "false") << ")"
@@ -1495,8 +1495,8 @@ void EqualityEngine::explainEquality(TNode t1,
 void EqualityEngine::explainPredicate(TNode p,
                                       bool polarity,
                                       std::vector<TNode>& assertions,
-                                      EqProof* eqp,
-                                      ExplainAlgorithm algo)
+                                      options::UfAlgorithmMode algo,
+                                      EqProof* eqp)
 {
   Trace("equality") << d_name << "::eq::explainPredicate(" << p << ")"
                     << std::endl;
@@ -1539,11 +1539,11 @@ void EqualityEngine::explainLit(TNode lit,
       // no need to explain reflexivity
       return;
     }
-    explainEquality(atom[0], atom[1], polarity, tassumptions);
+    explainEquality(atom[0], atom[1], polarity, tassumptions, options().uf.ufAlgorithmMode);
   }
   else
   {
-    explainPredicate(atom, polarity, tassumptions);
+    explainPredicate(atom, polarity, tassumptions, options().uf.ufAlgorithmMode);
   }
   // ensure that duplicates are removed
   for (TNode a : tassumptions)
@@ -1627,7 +1627,7 @@ int EqualityEngine::shortestPath(EqualityNodeId start,
         weight = edgeWeights[edge];
 
       if (weight == std::numeric_limits<int>::max()) continue;
-      if (d_equalityEdges[edge].getLevel() > maxLevel) continue;
+      if (d_equalityEdges[edge].getLevel() > maxLevel && d_equalityEdges[edge].isRedundant()) continue;
 
       auto newDist = (currentDist > std::numeric_limits<int>::max() - weight)
                          ? std::numeric_limits<int>::max()
@@ -1803,17 +1803,17 @@ void EqualityEngine::getExplanation(
     uint32_t level,
     std::map<std::pair<EqualityNodeId, EqualityNodeId>, std::pair<uint32_t, EqProof*>>& cache,
     EqProof* eqp,
-    ExplainAlgorithm algo)
+    options::UfAlgorithmMode algo)
 {
   if (keepRedundantEqualities())
     computeExtraRedundantEdges();
 
-  if (algo == ExplainAlgorithm::Vanilla)
+  if (algo == options::UfAlgorithmMode::VANILLA)
   {
     getExplanationImpl(
         t1Id, t2Id, std::numeric_limits<int>::max(), level, std::vector<int>(), equalities, cache, eqp, algo);
   }
-  else if (algo == ExplainAlgorithm::TreeOpt)
+  else if (algo == options::UfAlgorithmMode::TREE_OPT)
   {
     computeTreeOptWeights();
     getExplanationImpl(
@@ -1979,7 +1979,7 @@ void EqualityEngine::getExplanationImpl(
       const EqualityEdge& edge = d_equalityEdges[currentEdgeId];
 
       bool isBackEdge = (currentEdgeId | 1u) == (current.d_edgeId | 1u);
-      bool isForbidden = edge.getLevel() > level;
+      bool isForbidden = edge.getLevel() > level && edge.isRedundant();
 
       // If not just the backwards edge, or forbidden edge
       if (!isBackEdge && !isForbidden)
@@ -2117,7 +2117,7 @@ void EqualityEngine::getExplanationImpl(
               std::shared_ptr<EqProof> eqpc1 =
                   eqpc ? std::make_shared<EqProof>() : nullptr;
               getExplanationImpl(eq.d_a,
-                                 eq.d_a,
+                                 eq.d_b,
                                  fuel,
                                  currentEdge.getLevel(),
                                  proofSizeEstimates,
