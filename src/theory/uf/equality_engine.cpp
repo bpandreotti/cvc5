@@ -1933,7 +1933,7 @@ void EqualityEngine::getExplanationImpl(
               std::shared_ptr<EqProof> eqpc1 =
                   eqpc ? std::make_shared<EqProof>() : nullptr;
               getExplanationImpl(eq.d_a,
-                                 eq.d_a,
+                                 eq.d_b,
                                  fuel,
                                  currentEdge.getLevel(),
                                  proofSizeEstimates,
