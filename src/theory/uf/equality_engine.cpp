@@ -1017,7 +1017,7 @@ void EqualityEngine::addGraphEdge(EqualityNodeId t1, EqualityNodeId t2, unsigned
   d_stats.d_totalEdges += 1;
   d_stats.d_redundantEdges += (int)isRedundant;
 
-  uint32_t level =  d_assertedEqualitiesCount + d_extraEqualitiesCount + 1;
+  uint32_t level = d_assertedEqualitiesCount + 1;
   EqualityEdgeId edge = d_equalityEdges.size();
   d_equalityEdges.push_back(EqualityEdge(t2, d_equalityGraph[t1], type, reason, isRedundant, level));
   d_equalityEdges.push_back(EqualityEdge(t1, d_equalityGraph[t2], type, reason, isRedundant, level));
