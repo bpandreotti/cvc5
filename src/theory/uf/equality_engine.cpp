@@ -762,6 +762,19 @@ bool EqualityEngine::merge(EqualityNode& class1,
                      class1disequalitiesToNotify);
   }
 
+  while (d_findHistory.size() < d_assertedEqualitiesCount + 1)
+  {
+    std::vector<EqualityNodeId> previous = d_findHistory.empty()
+                                               ? std::vector<EqualityNodeId>()
+                                               : d_findHistory.back();
+    d_findHistory.push_back(previous);
+  }
+
+  for (EqualityEdgeId i = d_findHistory.back().size();
+       i < d_equalityNodes.size();
+       i++)
+    d_findHistory.back().push_back(i);
+
   // Update class2 representative information
   Trace("equality") << d_name << "::eq::merge(" << class1.getFind() << ","
                     << class2.getFind() << "): updating class " << class2Id
@@ -777,6 +790,7 @@ bool EqualityEngine::merge(EqualityNode& class1,
                       << class2.getFind() << "): " << currentId << "->"
                       << class1Id << std::endl;
     currentNode.setFind(class1Id);
+    d_findHistory[d_assertedEqualitiesCount][currentId] = class1Id;
 
     // Go through the triggers and inform if necessary
     TriggerId currentTrigger = d_nodeTriggers[currentId];
@@ -1031,6 +1045,7 @@ void EqualityEngine::backtrack()
       d_propagationQueue.pop_front();
     }
 
+    d_findHistory.resize(d_assertedEqualitiesCount + 1);
     d_treeOptEdgeWeights.resize(expectedEdgesCount);
     d_greedyEdgeWeights.resize(expectedEdgesCount);
 
@@ -1578,6 +1593,20 @@ Node EqualityEngine::mkExplainLit(TNode lit)
   return ret;
 }
 
+uint32_t EqualityEngine::getMergedLevel(EqualityNodeId a, EqualityNodeId b)
+{
+  for (uint32_t level = 0; level < d_findHistory.size(); level++)
+  {
+    if (a >= d_findHistory[level].size() || b >= d_findHistory[level].size())
+      continue;
+    uint32_t aFind = d_findHistory[level][a];
+    uint32_t bFind = d_findHistory[level][b];
+
+    if (aFind == bFind) return level;
+  }
+  return std::numeric_limits<uint32_t>::max();
+}
+
 bool EqualityEngine::keepRedundantEqualities() const {
   return options().uf.ufAlgorithmMode != options::UfAlgorithmMode::VANILLA;
 }
@@ -1838,6 +1867,9 @@ void EqualityEngine::getExplanationImpl(
       EqProof* eqp,
       ExplainAlgorithm algo)
 {
+  // Possibly downgrade level to the level in which t1 and t2 were merged
+  level = std::min(getMergedLevel(t1Id, t2Id), level);
+
   if (fuel <= 0) {
     return getExplanationImpl(
         t1Id, t2Id, std::numeric_limits<int>::max(), level, std::vector<int>(), equalities, cache, eqp, ExplainAlgorithm::Vanilla);
@@ -1887,10 +1919,6 @@ void EqualityEngine::getExplanationImpl(
       }
       return;
     }
-  }
-
-  if (d_edgeLevels.find(std::make_pair(t1Id, t2Id)) != d_edgeLevels.end()) {
-    level = std::min(level, d_edgeLevels.at(std::make_pair(t1Id, t2Id)));
   }
 
   // We can only explain the nodes that got merged
