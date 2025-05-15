@@ -548,7 +548,6 @@ int InstMatchGenerator::getNextMatch(InstMatch& m)
   do
   {
     Trace("matching-debug2") << "Matching candidate : " << t << std::endl;
-    Assert(!d_qstate.isInConflict());
     // if t not null, try to fit it into match m
     if (!t.isNull())
     {
