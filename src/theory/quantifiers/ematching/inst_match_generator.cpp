@@ -526,7 +526,6 @@ int InstMatchGenerator::getNextMatch(InstMatch& m)
   Node t = d_curr_first_candidate;
   do{
     Trace("matching-debug2") << "Matching candidate : " << t << std::endl;
-    Assert(!d_qstate.isInConflict());
     //if t not null, try to fit it into match m
     if( !t.isNull() ){
       if( d_curr_exclude_match.find( t )==d_curr_exclude_match.end() ){
