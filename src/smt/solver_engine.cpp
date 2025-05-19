@@ -843,6 +843,8 @@ Result SolverEngine::checkSatInternal(const std::vector<Node>& assumptions)
     Assert(pe->getProof() != nullptr);
     std::shared_ptr<ProofNode> pePfn = pe->getProof();
     d_pfManager->connectProofToAssertions(pePfn, d_smtSolver->getAssertions());
+    // now check the proof to make sure stats are computed
+    d_pfManager->checkFinalProof(pePfn);
   }
   // Check that UNSAT results generate an unsat core correctly.
   if (d_env->getOptions().smt.checkUnsatCores)
