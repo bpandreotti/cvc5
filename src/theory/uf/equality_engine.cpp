@@ -1469,15 +1469,6 @@ int EqualityEngine::shortestPath(EqualityNodeId start,
       if (weight == std::numeric_limits<int>::max()) continue;
       if (d_equalityEdges[edge].getLevel() > maxLevel && d_equalityEdges[edge].isRedundant()) continue;
 
-      auto next = d_equalityEdges[edge].getNodeId();
-
-      if (currentNode == start && next == end
-          && d_equalityEdges[edge].isRedundant()
-          && d_equalityEdges[edge].getReasonType() == MERGED_THROUGH_EQUALITY
-      ) {
-          continue;
-      }
-
       auto newDist = (currentDist > std::numeric_limits<int>::max() - weight)
                          ? std::numeric_limits<int>::max()
                          : currentDist + weight;
@@ -1823,13 +1814,9 @@ void EqualityEngine::getExplanationImpl(
 
       bool isBackEdge = (currentEdgeId | 1u) == (current.d_edgeId | 1u);
       bool isForbidden = edge.getLevel() > level && edge.isRedundant();
-      bool isDirectRedundant =
-          currentNodeId == t1Id && edge.getNodeId() == t2Id
-          && edge.isRedundant()
-          && edge.getReasonType() == MERGED_THROUGH_EQUALITY;
 
       // If not just the backwards edge, or forbidden edge
-      if (!isBackEdge && !isForbidden && !isDirectRedundant)
+      if (!isBackEdge && !isForbidden)
       {
         Trace("equality") << d_name
                           << "::eq::getExplanation(): currentEdge = ({"
