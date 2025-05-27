@@ -773,6 +773,9 @@ bool EqualityEngine::merge(EqualityNode& class1, EqualityNode& class2, std::vect
   // Now merge the lists
   class1.merge<true>(class2);
 
+  // if (keepRedundantEqualities())
+  //   computeExtraRedundantEdges();
+
   // notify the theory
   if (doNotify) {
     d_notify->eqNotifyMerge(n1, n2);
@@ -1025,6 +1028,10 @@ void EqualityEngine::backtrack() {
 }
 
 void EqualityEngine::addGraphEdge(EqualityNodeId t1, EqualityNodeId t2, unsigned type, TNode reason, bool isRedundant) {
+  addGraphEdge(t1, t2, type, reason, isRedundant, d_context->getLevel());
+}
+
+void EqualityEngine::addGraphEdge(EqualityNodeId t1, EqualityNodeId t2, unsigned type, TNode reason, bool isRedundant, uint32_t level) {
   Trace("equality") << d_name << "::eq::addGraphEdge({" << t1 << "} "
                     << d_nodes[t1] << ", {" << t2 << "} " << d_nodes[t2] << ","
                     << reason
@@ -1034,7 +1041,8 @@ void EqualityEngine::addGraphEdge(EqualityNodeId t1, EqualityNodeId t2, unsigned
   d_stats.d_totalEdges += 1;
   d_stats.d_redundantEdges += (int)isRedundant;
 
-  uint32_t level = d_context->getLevel();
+  // uint32_t level = d_context->getLevel();
+  level = std::min(getMergedLevel(t1, t2), level);
   EqualityEdgeId edge = d_equalityEdges.size();
   d_equalityEdges.push_back(EqualityEdge(t2, d_equalityGraph[t1], type, reason, isRedundant, level));
   d_equalityEdges.push_back(EqualityEdge(t1, d_equalityGraph[t2], type, reason, isRedundant, level));
@@ -1406,7 +1414,7 @@ Node EqualityEngine::mkExplainLit(TNode lit)
   return ret;
 }
 
-uint32_t EqualityEngine::getMergedLevel(EqualityNodeId a, EqualityNodeId b)
+uint32_t EqualityEngine::getMergedLevel(EqualityNodeId a, EqualityNodeId b) const
 {
   for (uint32_t level = 0; level < d_findHistory.size(); level++)
   {
@@ -1429,6 +1437,7 @@ int EqualityEngine::shortestPath(EqualityNodeId start,
                                  uint32_t maxLevel,
                                  const std::vector<int>& edgeWeights) const
 {
+  maxLevel = std::min(getMergedLevel(start, end), maxLevel);
   auto compare = [](BfsData left, BfsData right) {
     return left.d_distFromSource > right.d_distFromSource;
   };
@@ -1536,8 +1545,8 @@ void EqualityEngine::computeGreedyWeights()
       FunctionApplication f2 = d_applications[d_equalityEdges[i + 1].getNodeId()].d_original;
 
       uint32_t level = d_equalityEdges[i].getLevel();
-      int left = estimateTreeSize(f1.d_a, f2.d_a, level);
-      int right = estimateTreeSize(f1.d_b, f2.d_b, level);
+      int left = estimateTreeSize(f1.d_a, f2.d_a, std::min(getMergedLevel(f1.d_a, f2.d_a), level));
+      int right = estimateTreeSize(f1.d_b, f2.d_b, std::min(getMergedLevel(f1.d_b, f2.d_b), level));
       d_greedyEdgeWeights[i] = (left > std::numeric_limits<int>::max() - right)
                                    ? std::numeric_limits<int>::max()
                                    : left + right;
@@ -1605,7 +1614,9 @@ void EqualityEngine::computeExtraRedundantEdges()
                            otherNode,
                            MERGED_THROUGH_CONGRUENCE,
                            TNode::null(),
-                           true);
+                           true,
+                           getMergedLevel(node, otherNode)
+                         );
               d_extraEqualitiesCount = d_extraEqualitiesCount + 1;
               if (d_extraEqualitiesCount >= extraEdgesLimit) break;
             }
@@ -1649,8 +1660,8 @@ void EqualityEngine::getExplanation(
     options::UfAlgorithmMode algo)
 {
   Trace("bruno") << "root level: " << d_context->getLevel() << " " << level << std::endl;
-  if (keepRedundantEqualities())
-    computeExtraRedundantEdges();
+  // if (keepRedundantEqualities())
+  //   computeExtraRedundantEdges();
 
   if (algo == options::UfAlgorithmMode::VANILLA)
   {
@@ -1669,6 +1680,12 @@ void EqualityEngine::getExplanation(
     getExplanationImpl(
         t1Id, t2Id, options().uf.ufFuel, level, d_greedyEdgeWeights, equalities, cache, eqp);
   }
+
+  Trace("test") << "finished explanation for " << d_nodes[t1Id] << " = " << d_nodes[t2Id] << ": [";
+  for (auto& e : equalities) {
+    Trace("test") << e << " ";
+  }
+  Trace("test") << "]" << std::endl;
 }
 
 void EqualityEngine::getExplanationImpl(
@@ -2342,6 +2359,7 @@ void EqualityEngine::propagate() {
     // conflict)
     bool isRedundant = t1classId == t2classId;
     if (isRedundant) {
+      // continue;
       if (!keepRedundantEqualities() || (d_isConstant[t1classId] && d_isConstant[t2classId])) {
         continue;
       }

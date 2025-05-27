@@ -16,6 +16,7 @@
  * \todo document this file
  */
 
+#include <cstdint>
 #include "cvc5_private.h"
 
 #ifndef CVC5__THEORY__UF__EQUALITY_ENGINE_H
@@ -474,6 +475,7 @@ class EqualityEngine : public context::ContextNotifyObj, protected EnvObj
 
   /** Add an edge to the equality graph */
   void addGraphEdge(EqualityNodeId t1, EqualityNodeId t2, unsigned type, TNode reason, bool isRedundant);
+  void addGraphEdge(EqualityNodeId t1, EqualityNodeId t2, unsigned type, TNode reason, bool isRedundant, uint32_t level);
 
   /** Returns the equality node of the given node */
   EqualityNode& getEqualityNode(TNode node);
@@ -640,7 +642,7 @@ class EqualityEngine : public context::ContextNotifyObj, protected EnvObj
                          EqualityNodeId id2,
                          EqProof* eqp) const;
 
-  uint32_t getMergedLevel(EqualityNodeId a, EqualityNodeId b);
+  uint32_t getMergedLevel(EqualityNodeId a, EqualityNodeId b) const;
 
   bool keepRedundantEqualities() const;
 
