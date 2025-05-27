@@ -668,18 +668,21 @@ bool EqualityEngine::merge(EqualityNode& class1, EqualityNode& class2, std::vect
     getDisequalities(!class2isConstant, class1Id, class2OnlyTags, class1disequalitiesToNotify);
   }
 
-  while (d_findHistory.size() < d_assertedEqualitiesCount + 1)
+  if (keepRedundantEqualities())
   {
-    std::vector<EqualityNodeId> previous = d_findHistory.empty()
-                                               ? std::vector<EqualityNodeId>()
-                                               : d_findHistory.back();
-    d_findHistory.push_back(previous);
-  }
+    while (d_findHistory.size() < d_assertedEqualitiesCount + 1)
+    {
+      std::vector<EqualityNodeId> previous = d_findHistory.empty()
+                                                 ? std::vector<EqualityNodeId>()
+                                                 : d_findHistory.back();
+      d_findHistory.push_back(previous);
+    }
 
-  for (EqualityEdgeId i = d_findHistory.back().size();
-       i < d_equalityNodes.size();
-       i++)
-    d_findHistory.back().push_back(i);
+    for (EqualityEdgeId i = d_findHistory.back().size();
+         i < d_equalityNodes.size();
+         i++)
+      d_findHistory.back().push_back(i);
+  }
 
   // Update class2 representative information
   Trace("equality") << d_name << "::eq::merge(" << class1.getFind() << "," << class2.getFind() << "): updating class " << class2Id << std::endl;
@@ -691,7 +694,8 @@ bool EqualityEngine::merge(EqualityNode& class1, EqualityNode& class2, std::vect
     // Update it's find to class1 id
     Trace("equality") << d_name << "::eq::merge(" << class1.getFind() << "," << class2.getFind() << "): " << currentId << "->" << class1Id << std::endl;
     currentNode.setFind(class1Id);
-    d_findHistory[d_assertedEqualitiesCount][currentId] = class1Id;
+    if (keepRedundantEqualities())
+      d_findHistory[d_assertedEqualitiesCount][currentId] = class1Id;
 
     // Go through the triggers and inform if necessary
     TriggerId currentTrigger = d_nodeTriggers[currentId];
@@ -904,9 +908,12 @@ void EqualityEngine::backtrack() {
       d_propagationQueue.pop_front();
     }
 
-    d_findHistory.resize(d_assertedEqualitiesCount + 1);
-    d_treeOptEdgeWeights.resize(expectedEdgesCount);
-    d_greedyEdgeWeights.resize(expectedEdgesCount);
+    if (keepRedundantEqualities())
+    {
+      d_findHistory.resize(d_assertedEqualitiesCount + 1);
+      d_treeOptEdgeWeights.resize(expectedEdgesCount);
+      d_greedyEdgeWeights.resize(expectedEdgesCount);
+    }
 
     Trace("equality") << d_name << "::eq::backtrack(): nodes" << std::endl;
 
@@ -1678,7 +1685,8 @@ void EqualityEngine::getExplanationImpl(
       EqProof* eqp)
 {
   // Possibly downgrade level to the level in which t1 and t2 were merged
-  level = std::min(getMergedLevel(t1Id, t2Id), level);
+  if (keepRedundantEqualities())
+    level = std::min(getMergedLevel(t1Id, t2Id), level);
 
   if (fuel <= 0) {
     return getExplanationImpl(
