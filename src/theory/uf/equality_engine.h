@@ -466,8 +466,6 @@ class EqualityEngine : public context::ContextNotifyObj, protected EnvObj
 
   std::map<std::pair<EqualityNodeId, EqualityNodeId>, uint32_t> d_edgeLevels;
 
-  std::vector<std::vector<EqualityNodeId>> d_findHistory;
-
   /**
    * Map from a node to its first edge in the equality graph. Edges are added to the front of the
    * list which makes the insertion/backtracking easy.
