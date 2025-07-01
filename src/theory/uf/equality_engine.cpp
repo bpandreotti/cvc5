@@ -668,22 +668,6 @@ bool EqualityEngine::merge(EqualityNode& class1, EqualityNode& class2, std::vect
     getDisequalities(!class2isConstant, class1Id, class2OnlyTags, class1disequalitiesToNotify);
   }
 
-  if (keepRedundantEqualities())
-  {
-    while (d_findHistory.size() < d_assertedEqualitiesCount + 1)
-    {
-      std::vector<EqualityNodeId> previous = d_findHistory.empty()
-                                                 ? std::vector<EqualityNodeId>()
-                                                 : d_findHistory.back();
-      d_findHistory.push_back(previous);
-    }
-
-    for (EqualityEdgeId i = d_findHistory.back().size();
-         i < d_equalityNodes.size();
-         i++)
-      d_findHistory.back().push_back(i);
-  }
-
   // Update class2 representative information
   Trace("equality") << d_name << "::eq::merge(" << class1.getFind() << "," << class2.getFind() << "): updating class " << class2Id << std::endl;
   EqualityNodeId currentId = class2Id;
@@ -694,8 +678,6 @@ bool EqualityEngine::merge(EqualityNode& class1, EqualityNode& class2, std::vect
     // Update it's find to class1 id
     Trace("equality") << d_name << "::eq::merge(" << class1.getFind() << "," << class2.getFind() << "): " << currentId << "->" << class1Id << std::endl;
     currentNode.setFind(class1Id);
-    if (keepRedundantEqualities())
-      d_findHistory[d_assertedEqualitiesCount][currentId] = class1Id;
 
     // Go through the triggers and inform if necessary
     TriggerId currentTrigger = d_nodeTriggers[currentId];
@@ -910,7 +892,6 @@ void EqualityEngine::backtrack() {
 
     if (keepRedundantEqualities())
     {
-      d_findHistory.resize(d_assertedEqualitiesCount + 1);
       d_treeOptEdgeWeights.resize(expectedEdgesCount);
       d_greedyEdgeWeights.resize(expectedEdgesCount);
     }
@@ -1413,16 +1394,29 @@ Node EqualityEngine::mkExplainLit(TNode lit)
 
 uint32_t EqualityEngine::getMergedLevel(EqualityNodeId a, EqualityNodeId b)
 {
-  for (uint32_t level = 0; level < d_findHistory.size(); level++)
+  std::queue<std::pair<EqualityNodeId, uint32_t>> queue;
+  std::unordered_set<EqualityNodeId> seen;
+  queue.push(std::make_pair(a, 0));
+  while (true)
   {
-    if (a >= d_findHistory[level].size() || b >= d_findHistory[level].size())
-      continue;
-    uint32_t aFind = d_findHistory[level][a];
-    uint32_t bFind = d_findHistory[level][b];
+    EqualityNodeId currentNode;
+    uint32_t maxLevel;
+    std::tie(currentNode, maxLevel) = queue.front();
+    queue.pop();
 
-    if (aFind == bFind) return level;
+    if (currentNode == b) return maxLevel;
+
+    if (seen.count(currentNode)) continue;
+    seen.insert(currentNode);
+
+    for (EqualityEdgeId edgeId = d_equalityGraph[currentNode]; edgeId != null_edge;
+         edgeId = d_equalityEdges[edgeId].getNext())
+    {
+      auto edge = d_equalityEdges[edgeId];
+      if (edge.isRedundant()) continue;
+      queue.push(std::make_pair(edge.getNodeId(), edge.getLevel()));
+    }
   }
-  return std::numeric_limits<uint32_t>::max();
 }
 
 bool EqualityEngine::keepRedundantEqualities() const {
