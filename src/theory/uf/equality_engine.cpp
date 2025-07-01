@@ -466,7 +466,12 @@ const EqualityNode& EqualityEngine::getEqualityNode(EqualityNodeId nodeId) const
   return d_equalityNodes[nodeId];
 }
 
-void EqualityEngine::assertEqualityInternal(TNode t1, TNode t2, TNode reason, unsigned pid) {
+void EqualityEngine::assertEqualityInternal(TNode t1,
+                                            TNode t2,
+                                            TNode reason,
+                                            unsigned pid,
+                                            std::vector<Node> provenance)
+{
   Trace("equality") << d_name << "::eq::addEqualityInternal(" << t1 << "," << t2
                     << "), reason = " << reason
                     << ", pid = " << static_cast<MergeReasonType>(pid)
@@ -489,7 +494,8 @@ void EqualityEngine::assertEqualityInternal(TNode t1, TNode t2, TNode reason, un
 bool EqualityEngine::assertPredicate(TNode t,
                                      bool polarity,
                                      TNode reason,
-                                     unsigned pid)
+                                     unsigned pid,
+                                     std::vector<Node> provenance)
 {
   Trace("equality") << d_name << "::eq::addPredicate(" << t << "," << (polarity ? "true" : "false") << ")" << std::endl;
   Assert(t.getKind() != Kind::EQUAL) << "Use assertEquality instead";
@@ -498,7 +504,7 @@ bool EqualityEngine::assertPredicate(TNode t,
   {
     return false;
   }
-  assertEqualityInternal(t, b, reason, pid);
+  assertEqualityInternal(t, b, reason, pid, provenance);
   propagate();
   return true;
 }
@@ -506,7 +512,8 @@ bool EqualityEngine::assertPredicate(TNode t,
 bool EqualityEngine::assertEquality(TNode eq,
                                     bool polarity,
                                     TNode reason,
-                                    unsigned pid)
+                                    unsigned pid,
+                                    std::vector<Node> provenance)
 {
   Trace("equality") << d_name << "::eq::addEquality(" << eq << "," << (polarity ? "true" : "false") << ")" << std::endl;
   if (polarity) {
@@ -517,7 +524,7 @@ bool EqualityEngine::assertEquality(TNode eq,
       return false;
     }
     // Add equality between terms
-    assertEqualityInternal(eq[0], eq[1], reason, pid);
+    assertEqualityInternal(eq[0], eq[1], reason, pid, provenance);
     propagate();
   } else {
     // If two terms are already dis-equal, don't assert anything
@@ -530,7 +537,7 @@ bool EqualityEngine::assertEquality(TNode eq,
 
     Trace("equality::trigger") << d_name << "::eq::addEquality(" << eq << "," << (polarity ? "true" : "false") << ")" << std::endl;
 
-    assertEqualityInternal(eq, d_false, reason, pid);
+    assertEqualityInternal(eq, d_false, reason, pid, provenance);
     propagate();
 
     if (d_done) {

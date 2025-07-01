@@ -1142,8 +1142,16 @@ void Solver::uncheckedEnqueue(Lit p, CRef from)
   trail.push_(p);
   if (theory[var(p)])
   {
+    SatLiteral satLit = MinisatSatSolver::toSatLiteral(p);
+    std::vector<SatLiteral> provenance;
+    if (from != CRef_Undef && from != CRef_Lazy)
+    {
+      // TODO: maybe just send the Clause directly, instead of a vector of SatLiterals
+      for (int i = 0; i < ca[from].size(); ++i)
+        provenance.push_back(MinisatSatSolver::toSatLiteral(ca[from][i]));
+    }
     // Enqueue to the theory
-    d_proxy->enqueueTheoryLiteral(MinisatSatSolver::toSatLiteral(p));
+    d_proxy->enqueueTheoryLiteral(satLit, provenance);
   }
 }
 

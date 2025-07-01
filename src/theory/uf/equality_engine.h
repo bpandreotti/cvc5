@@ -186,7 +186,8 @@ class EqualityEngine : public context::ContextNotifyObj, protected EnvObj
   bool assertPredicate(TNode p,
                        bool polarity,
                        TNode reason,
-                       unsigned pid = MERGED_THROUGH_EQUALITY);
+                       unsigned pid = MERGED_THROUGH_EQUALITY,
+                       std::vector<Node> provenance = {});
   /**
    * Adds an equality eq with the given polarity to the database.
    *
@@ -199,7 +200,8 @@ class EqualityEngine : public context::ContextNotifyObj, protected EnvObj
   bool assertEquality(TNode eq,
                       bool polarity,
                       TNode reason,
-                      unsigned pid = MERGED_THROUGH_EQUALITY);
+                      unsigned pid = MERGED_THROUGH_EQUALITY,
+                      std::vector<Node> provenance = {});
 
 
   //--------------------end updates
@@ -707,7 +709,11 @@ class EqualityEngine : public context::ContextNotifyObj, protected EnvObj
   /**
    * Adds an equality of terms t1 and t2 to the database.
    */
-  void assertEqualityInternal(TNode t1, TNode t2, TNode reason, unsigned pid = MERGED_THROUGH_EQUALITY);
+  void assertEqualityInternal(TNode t1,
+                              TNode t2,
+                              TNode reason,
+                              unsigned pid = MERGED_THROUGH_EQUALITY,
+                              std::vector<Node> provenance = {});
 
   /**
    * Adds a trigger equality to the database with the trigger node and polarity for notification.

@@ -31,8 +31,10 @@ struct Assertion {
   /** Has this assertion been preregistered with this theory. */
   bool d_isPreregistered;
 
-  Assertion(TNode assertion, bool isPreregistered)
-      : d_assertion(assertion), d_isPreregistered(isPreregistered)
+  std::vector<Node> d_provenance;
+
+  Assertion(TNode assertion, bool isPreregistered, std::vector<Node> provenance)
+      : d_assertion(assertion), d_isPreregistered(isPreregistered), d_provenance(provenance)
   {
   }
 

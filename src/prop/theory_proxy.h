@@ -116,7 +116,7 @@ class TheoryProxy : protected EnvObj, public Registrar
 
   void theoryPropagate(SatClause& output);
 
-  void enqueueTheoryLiteral(const SatLiteral& l);
+  void enqueueTheoryLiteral(const SatLiteral& l, std::vector<SatLiteral> provenance = {});
 
   /**
    * Get the next decision request.
@@ -239,7 +239,7 @@ class TheoryProxy : protected EnvObj, public Registrar
   TheoryEngine* d_theoryEngine;
 
   /** Queue of asserted facts and their decision level. */
-  context::CDQueue<std::pair<TNode, int32_t>> d_queue;
+  context::CDQueue<std::tuple<TNode, int32_t, std::vector<Node>>> d_queue;
 
   /** The theory preprocessor */
   theory::TheoryPreprocessor d_tpp;

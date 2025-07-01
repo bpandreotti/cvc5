@@ -993,9 +993,16 @@ bool TheoryEngine::markPropagation(TNode assertion, TNode originalAssertion, the
   return true;
 }
 
-
-void TheoryEngine::assertToTheory(TNode assertion, TNode originalAssertion, theory::TheoryId toTheoryId, theory::TheoryId fromTheoryId) {
-  Trace("theory::assertToTheory") << "TheoryEngine::assertToTheory(" << assertion << ", " << originalAssertion << "," << toTheoryId << ", " << fromTheoryId << ")" << endl;
+void TheoryEngine::assertToTheory(TNode assertion,
+                                  TNode originalAssertion,
+                                  theory::TheoryId toTheoryId,
+                                  theory::TheoryId fromTheoryId,
+                                  std::vector<Node> provenance)
+{
+  Trace("theory::assertToTheory")
+      << "TheoryEngine::assertToTheory(" << assertion << ", "
+      << originalAssertion << "," << toTheoryId << ", " << fromTheoryId << ")"
+      << endl;
 
   Assert(toTheoryId != fromTheoryId);
   if (toTheoryId != THEORY_SAT_SOLVER
@@ -1022,7 +1029,7 @@ void TheoryEngine::assertToTheory(TNode assertion, TNode originalAssertion, theo
       // Send to the apropriate theory
       theory::Theory* toTheory = theoryOf(toTheoryId);
       // We assert it, and we know it's preregistereed
-      toTheory->assertFact(assertion, true);
+      toTheory->assertFact(assertion, true, provenance);
       // Mark that we have more information
       d_factsAsserted = true;
     } else {
@@ -1071,7 +1078,7 @@ void TheoryEngine::assertToTheory(TNode assertion, TNode originalAssertion, theo
       bool preregistered = d_propEngine->isSatLiteral(assertion)
                            && d_env.theoryOf(assertion) == toTheoryId;
       // We assert it
-      theoryOf(toTheoryId)->assertFact(assertion, preregistered);
+      theoryOf(toTheoryId)->assertFact(assertion, preregistered, provenance);
       // Mark that we have more information
       d_factsAsserted = true;
     }
@@ -1135,14 +1142,14 @@ void TheoryEngine::assertToTheory(TNode assertion, TNode originalAssertion, theo
     bool preregistered = d_propEngine->isSatLiteral(assertion)
                          && d_env.theoryOf(assertion) == toTheoryId;
     // Assert away
-    theoryOf(toTheoryId)->assertFact(assertion, preregistered);
+    theoryOf(toTheoryId)->assertFact(assertion, preregistered, provenance);
     d_factsAsserted = true;
   }
 
   return;
 }
 
-void TheoryEngine::assertFact(TNode literal)
+void TheoryEngine::assertFact(TNode literal, std::vector<Node> provenance)
 {
   Trace("theory") << "TheoryEngine::assertFact(" << literal << ")" << endl;
 
@@ -1171,10 +1178,11 @@ void TheoryEngine::assertFact(TNode literal)
       assertToTheory(literal,
                      literal,
                      /* to */ d_env.theoryOf(atom),
-                     /* from */ THEORY_SAT_SOLVER);
+                     /* from */ THEORY_SAT_SOLVER,
+                     provenance);
       // Shared terms manager will assert to interested theories directly, as
       // the terms become shared
-      assertToTheory(literal, literal, /* to */ THEORY_BUILTIN, /* from */ THEORY_SAT_SOLVER);
+      assertToTheory(literal, literal, /* to */ THEORY_BUILTIN, /* from */ THEORY_SAT_SOLVER, provenance);
 
       // Now, let's check for any atom triggers from lemmas
       AtomRequests::atom_iterator it = d_atomRequests.getAtomIterator(atom);
@@ -1185,7 +1193,7 @@ void TheoryEngine::assertFact(TNode literal)
         Trace("theory::atoms") << "TheoryEngine::assertFact(" << literal
                                << "): sending requested " << toAssert << endl;
         assertToTheory(
-            toAssert, literal, request.d_toTheory, THEORY_SAT_SOLVER);
+            toAssert, literal, request.d_toTheory, THEORY_SAT_SOLVER, provenance);
         it.next();
       }
     }
@@ -1195,7 +1203,8 @@ void TheoryEngine::assertFact(TNode literal)
       assertToTheory(literal,
                      literal,
                      /* to */ d_env.theoryOf(atom),
-                     /* from */ THEORY_SAT_SOLVER);
+                     /* from */ THEORY_SAT_SOLVER,
+                     provenance);
     }
   }
   else
@@ -1204,7 +1213,8 @@ void TheoryEngine::assertFact(TNode literal)
     assertToTheory(literal,
                    literal,
                    /* to */ d_env.theoryOf(atom),
-                   /* from */ THEORY_SAT_SOLVER);
+                   /* from */ THEORY_SAT_SOLVER,
+                   provenance);
   }
 }
 

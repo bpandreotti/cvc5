@@ -214,9 +214,10 @@ void TheoryProxy::theoryCheck(theory::Theory::Effort effort) {
   d_prr->check();
   TNode assertion;
   int32_t alevel;
+  std::vector<Node> provenance;
   while (!d_queue.empty())
   {
-    std::tie(assertion, alevel) = d_queue.front();
+    std::tie(assertion, alevel, provenance) = d_queue.front();
     d_queue.pop();
     if (d_zll != nullptr)
     {
@@ -241,7 +242,7 @@ void TheoryProxy::theoryCheck(theory::Theory::Effort effort) {
     }
     // now, assert to theory engine
     Trace("prereg") << "assert: " << assertion << std::endl;
-    d_theoryEngine->assertFact(assertion);
+    d_theoryEngine->assertFact(assertion, provenance);
     if (d_trackActiveSkDefs)
     {
       Assert(d_skdm != nullptr);
@@ -367,13 +368,21 @@ void TheoryProxy::notifySatClause(const SatClause& clause)
   }
 }
 
-void TheoryProxy::enqueueTheoryLiteral(const SatLiteral& l) {
+void TheoryProxy::enqueueTheoryLiteral(const SatLiteral& l,
+                                       std::vector<SatLiteral> provenance)
+{
   Node literalNode = d_cnfStream->getNode(l);
   Trace("theory-proxy") << "enqueueing theory literal " << l << " "
                         << literalNode << std::endl;
   Assert(!literalNode.isNull());
+
+  std::vector<Node> provNodes;
+  for (SatLiteral& lit : provenance)
+    provNodes.push_back(d_cnfStream->getNode(lit));
+
   // Decision level = SAT context level - 1 due to global push().
-  d_queue.push(std::make_pair(literalNode, context()->getLevel() - 1));
+  d_queue.push(
+      std::make_tuple(literalNode, context()->getLevel() - 1, provNodes));
 }
 
 SatLiteral TheoryProxy::getNextDecisionRequest(bool& requirePhase,

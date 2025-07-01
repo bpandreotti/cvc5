@@ -281,7 +281,7 @@ class TheoryEngine : protected EnvObj
    * Assert the formula to the appropriate theory.
    * @param node the assertion
    */
-  void assertFact(TNode node);
+  void assertFact(TNode node, std::vector<Node> provenance = {});
 
   /**
    * Check all (currently-active) theories for conflicts.
@@ -499,7 +499,8 @@ class TheoryEngine : protected EnvObj
   void assertToTheory(TNode assertion,
                       TNode originalAssertion,
                       theory::TheoryId toTheoryId,
-                      theory::TheoryId fromTheoryId);
+                      theory::TheoryId fromTheoryId,
+                      std::vector<Node> provenance = {});
 
   /**
    * Marks a theory propagation from a theory to a theory where a

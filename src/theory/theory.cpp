@@ -581,11 +581,19 @@ void Theory::check(Effort level)
     // assert to the equality engine
     if (atom.getKind() == Kind::EQUAL)
     {
-      d_equalityEngine->assertEquality(atom, polarity, fact);
+      d_equalityEngine->assertEquality(atom,
+                                       polarity,
+                                       fact,
+                                       eq::MERGED_THROUGH_EQUALITY,
+                                       assertion.d_provenance);
     }
     else
     {
-      d_equalityEngine->assertPredicate(atom, polarity, fact);
+      d_equalityEngine->assertPredicate(atom,
+                                        polarity,
+                                        fact,
+                                        eq::MERGED_THROUGH_EQUALITY,
+                                        assertion.d_provenance);
     }
     Trace("theory-check") << "Theory::notifyFact " << fact << " " << d_id
                           << std::endl;
