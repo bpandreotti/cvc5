@@ -642,6 +642,10 @@ class EqualityEngine : public context::ContextNotifyObj, protected EnvObj
                          EqualityNodeId id2,
                          EqProof* eqp) const;
 
+  std::pair<EqualityNodeId, EqualityNodeId> provenantToPair(Node& provenant);
+
+  uint32_t getLevelFromProvenance(std::vector<Node> provenance);
+
   uint32_t getMergedLevel(EqualityNodeId a, EqualityNodeId b);
 
   bool keepRedundantEqualities() const;

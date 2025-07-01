@@ -488,7 +488,7 @@ void EqualityEngine::assertEqualityInternal(TNode t1,
   // Add to the queue and propagate
   EqualityNodeId t1Id = getNodeId(t1);
   EqualityNodeId t2Id = getNodeId(t2);
-  enqueue(MergeCandidate(t1Id, t2Id, pid, reason));
+  enqueue(MergeCandidate(t1Id, t2Id, pid, reason, provenance));
 }
 
 bool EqualityEngine::assertPredicate(TNode t,
@@ -1416,6 +1416,53 @@ Node EqualityEngine::mkExplainLit(TNode lit)
     ret = nodeManager()->mkNode(Kind::AND, assumptions);
   }
   return ret;
+}
+
+std::pair<EqualityNodeId, EqualityNodeId> EqualityEngine::provenantToPair(
+    Node& provenant)
+{
+  auto nullPair = std::make_pair(null_id, null_id);
+
+  bool polarity = provenant.getKind() != Kind::NOT;
+  TNode atom = polarity ? provenant : provenant[0];
+  if (atom.getKind() == Kind::EQUAL)
+  {
+    // It's an equality or disequality
+    if (!hasTerm(atom[0]) || !hasTerm(atom[1])) return nullPair;
+
+    if (polarity)
+      return std::make_pair(getNodeId(atom[0]), getNodeId(atom[1]));
+    else
+      return hasTerm(atom) ? std::make_pair(getNodeId(atom), getNodeId(d_false))
+                           : nullPair;
+  }
+  else
+  {
+    // It's a predicate assertion
+    if (!hasTerm(atom)) return nullPair;
+    TNode b = polarity ? d_true : d_false;
+    return std::make_pair(getNodeId(atom), getNodeId(b));
+  }
+}
+
+uint32_t EqualityEngine::getLevelFromProvenance(std::vector<Node> provenance)
+{
+  uint32_t level = 0;
+  for (Node& provenant : provenance)
+  {
+    auto pair = provenantToPair(provenant);
+    if (pair.first == null_id || pair.second == null_id) continue;
+
+    Trace("bruno") << "[prov pair] " << pair << std::endl;
+
+    auto edgeLevel = d_edgeLevels.find(pair);
+    if (edgeLevel != d_edgeLevels.end())
+    {
+      Trace("bruno") << "[prov lvl] " << edgeLevel->second << std::endl;
+      level = std::max(level, edgeLevel->second);
+    }
+  }
+  return level + 1;
 }
 
 uint32_t EqualityEngine::getMergedLevel(EqualityNodeId a, EqualityNodeId b)

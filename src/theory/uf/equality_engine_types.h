@@ -25,6 +25,7 @@
 #include <iostream>
 #include <sstream>
 
+#include "smt/env.h"
 #include "util/hash.h"
 
 namespace cvc5::internal {
@@ -108,11 +109,14 @@ struct MergeCandidate {
   EqualityNodeId d_t1Id, d_t2Id;
   unsigned d_type;
   TNode d_reason;
+  std::vector<Node> d_provenance;
+
   MergeCandidate(EqualityNodeId x,
                  EqualityNodeId y,
                  unsigned type,
-                 TNode reason)
-      : d_t1Id(x), d_t2Id(y), d_type(type), d_reason(reason)
+                 TNode reason,
+                 std::vector<Node> provenance = {})
+      : d_t1Id(x), d_t2Id(y), d_type(type), d_reason(reason), d_provenance(provenance)
   {}
 };
 
