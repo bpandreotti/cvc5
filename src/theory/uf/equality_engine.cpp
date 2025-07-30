@@ -1842,6 +1842,9 @@ void EqualityEngine::getExplanation(
     options::UfAlgorithmMode algo)
 {
   if (keepRedundantEqualities())
+    level = std::min(getMergedLevel(t1Id, t2Id), level);
+
+  if (keepRedundantEqualities())
     computeExtraRedundantEdges();
 
   if (algo == options::UfAlgorithmMode::VANILLA)
@@ -1874,10 +1877,6 @@ void EqualityEngine::getExplanationImpl(
       EqProof* eqp,
       ExplainAlgorithm algo)
 {
-  // Possibly downgrade level to the level in which t1 and t2 were merged
-  if (keepRedundantEqualities())
-    level = std::min(getMergedLevel(t1Id, t2Id), level);
-
   if (fuel <= 0) {
     return getExplanationImpl(
         t1Id, t2Id, std::numeric_limits<int>::max(), level, std::vector<int>(), equalities, cache, eqp, ExplainAlgorithm::Vanilla);
