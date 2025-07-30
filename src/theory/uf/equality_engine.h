@@ -694,7 +694,7 @@ class EqualityEngine : public context::ContextNotifyObj, protected EnvObj
       EqualityNodeId t2Id,
       std::vector<TNode>& equalities,
       uint32_t level,
-      std::map<std::pair<EqualityNodeId, EqualityNodeId>, std::pair<uint32_t, EqProof*>>& cache,
+      std::map<std::pair<EqualityNodeId, EqualityNodeId>, EqProof*>& cache,
       EqProof* eqp,
       options::UfAlgorithmMode algo);
 
@@ -705,7 +705,7 @@ class EqualityEngine : public context::ContextNotifyObj, protected EnvObj
       uint32_t level,
       const std::vector<int>& proofSizeEstimates,
       std::vector<TNode>& equalities,
-      std::map<std::pair<EqualityNodeId, EqualityNodeId>, std::pair<uint32_t, EqProof*>>& cache,
+      std::map<std::pair<EqualityNodeId, EqualityNodeId>, EqProof*>& cache,
       EqProof* eqp,
       ExplainAlgorithm algo);
 
