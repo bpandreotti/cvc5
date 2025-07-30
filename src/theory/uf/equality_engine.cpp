@@ -1176,7 +1176,7 @@ void EqualityEngine::explainEquality(TNode t1,
     debugPrintGraph();
   }
 
-  std::map<std::pair<EqualityNodeId, EqualityNodeId>, std::pair<uint32_t, EqProof*>> cache;
+  std::map<std::pair<EqualityNodeId, EqualityNodeId>, EqProof*> cache;
   if (polarity) {
     // Get the explanation
     getExplanation(t1Id, t2Id, equalities, d_assertedEqualitiesCount, cache, eqp, algo);
@@ -1335,7 +1335,7 @@ void EqualityEngine::explainPredicate(TNode p,
                     << std::endl;
   // Must have the term
   Assert(hasTerm(p));
-  std::map<std::pair<EqualityNodeId, EqualityNodeId>, std::pair<uint32_t, EqProof*>> cache;
+  std::map<std::pair<EqualityNodeId, EqualityNodeId>, EqProof*> cache;
   if (TraceIsOn("equality::internal"))
   {
     debugPrintGraph();
@@ -1648,7 +1648,7 @@ void EqualityEngine::getExplanation(
     EqualityNodeId t2Id,
     std::vector<TNode>& equalities,
     uint32_t level,
-    std::map<std::pair<EqualityNodeId, EqualityNodeId>, std::pair<uint32_t, EqProof*>>& cache,
+    std::map<std::pair<EqualityNodeId, EqualityNodeId>, EqProof*>& cache,
     EqProof* eqp,
     options::UfAlgorithmMode algo)
 {
@@ -1684,7 +1684,7 @@ void EqualityEngine::getExplanationImpl(
       uint32_t level,
       const std::vector<int>& proofSizeEstimates,
       std::vector<TNode>& equalities,
-      std::map<std::pair<EqualityNodeId, EqualityNodeId>, std::pair<uint32_t, EqProof*>>& cache,
+      std::map<std::pair<EqualityNodeId, EqualityNodeId>, EqProof*>& cache,
       EqProof* eqp)
 {
   if (fuel <= 0) {
@@ -1697,14 +1697,14 @@ void EqualityEngine::getExplanationImpl(
 
   // determine if we have already computed the explanation.
   std::pair<EqualityNodeId, EqualityNodeId> cacheKey;
-  std::map<std::pair<EqualityNodeId, EqualityNodeId>, std::pair<uint32_t, EqProof*>>::iterator it;
+  std::map<std::pair<EqualityNodeId, EqualityNodeId>, EqProof*>::iterator it;
   if (!eqp)
   {
     // If proofs are disabled, we order the ids, since explaining t1 = t2 is the
     // same as explaining t2 = t1.
     cacheKey = std::minmax(t1Id, t2Id);
     it = cache.find(cacheKey);
-    if (it != cache.end() && it->second.first <= level)
+    if (it != cache.end())
     {
       return;
     }
@@ -1717,15 +1717,15 @@ void EqualityEngine::getExplanationImpl(
     // case that proof/uf_proof.h,cpp is robust to equality ordering.
     cacheKey = std::pair<EqualityNodeId, EqualityNodeId>(t1Id, t2Id);
     it = cache.find(cacheKey);
-    if (it != cache.end() && it->second.first <= level)
+    if (it != cache.end())
     {
-      if (it->second.second)
+      if (it->second)
       {
-        eqp->d_id = it->second.second->d_id;
+        eqp->d_id = it->second->d_id;
         eqp->d_children.insert(eqp->d_children.end(),
-                               it->second.second->d_children.begin(),
-                               it->second.second->d_children.end());
-        eqp->d_node = it->second.second->d_node;
+                               it->second->d_children.begin(),
+                               it->second->d_children.end());
+        eqp->d_node = it->second->d_node;
       }
       else
       {
@@ -2109,7 +2109,7 @@ void EqualityEngine::getExplanationImpl(
           }
 
           // Done
-          cache[cacheKey] = std::make_pair(level, eqp);
+          cache[cacheKey] = eqp;
           return;
         }
 
@@ -2129,7 +2129,7 @@ void EqualityEngine::getExplanationImpl(
       currentEdgeId = d_equalityEdges[currentEdgeId].getNext();
     }
   }
-  cache[cacheKey] = std::make_pair(level, eqp);
+  cache[cacheKey] = eqp;
 }
 
 void EqualityEngine::addTriggerEquality(TNode eq) {
