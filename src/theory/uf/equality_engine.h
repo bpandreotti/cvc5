@@ -276,9 +276,6 @@ class EqualityEngine : public context::ContextNotifyObj, protected EnvObj
   /** Print the equivalence classes for debugging */
   std::string debugPrintEqc() const;
 
-  /** Print the number of redundant and total equalitites */
-  void debugPrintEqualityCounts() const;
-
  private:
   /** Statistics about the equality engine instance */
   struct Statistics

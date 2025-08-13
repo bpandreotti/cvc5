@@ -2535,12 +2535,6 @@ std::string EqualityEngine::debugPrintEqc() const
   return ss.str();
 }
 
-void EqualityEngine::debugPrintEqualityCounts() const
-{
-  Trace("cc-experiments") << "equalities count: " << d_assertedEqualitiesCount
-                          << "," << d_extraEqualitiesCount << std::endl;
-}
-
 bool EqualityEngine::areEqual(TNode t1, TNode t2) const {
   Trace("equality") << d_name << "::eq::areEqual(" << t1 << "," << t2 << ")";
 
