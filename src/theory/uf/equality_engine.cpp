@@ -1012,7 +1012,7 @@ void EqualityEngine::backtrack() {
 
 }
 
-void EqualityEngine::addGraphEdge(EqualityNodeId t1, EqualityNodeId t2, unsigned type, TNode reason, bool isRedundant) {
+void EqualityEngine::addGraphEdge(EqualityNodeId t1, EqualityNodeId t2, unsigned type, TNode reason, bool isRedundant, uint32_t level) {
   Trace("equality") << d_name << "::eq::addGraphEdge({" << t1 << "} "
                     << d_nodes[t1] << ", {" << t2 << "} " << d_nodes[t2] << ","
                     << reason << ")" << std::endl;
@@ -1020,7 +1020,9 @@ void EqualityEngine::addGraphEdge(EqualityNodeId t1, EqualityNodeId t2, unsigned
   d_stats.d_totalEdges += 1;
   d_stats.d_redundantEdges += (int)isRedundant;
 
-  uint32_t level = d_assertedEqualitiesCount + 1;
+  if (level == std::numeric_limits<uint32_t>::max())
+    level = d_assertedEqualitiesCount + 1;
+
   EqualityEdgeId edge = d_equalityEdges.size();
   d_equalityEdges.push_back(EqualityEdge(t2, d_equalityGraph[t1], type, reason, isRedundant, level));
   d_equalityEdges.push_back(EqualityEdge(t1, d_equalityGraph[t2], type, reason, isRedundant, level));
@@ -1414,7 +1416,7 @@ uint32_t EqualityEngine::getMergedLevel(EqualityNodeId a, EqualityNodeId b)
     {
       auto edge = d_equalityEdges[edgeId];
       if (edge.isRedundant()) continue;
-      queue.push(std::make_pair(edge.getNodeId(), edge.getLevel()));
+      queue.push(std::make_pair(edge.getNodeId(), std::max(maxLevel, edge.getLevel())));
     }
   }
 }
@@ -1591,6 +1593,7 @@ void EqualityEngine::computeExtraRedundantEdges()
 
           if (canonicalFormMap.find(can) != canonicalFormMap.end())
           {
+            canonicalFormMap[can].push_back(node);
             for (EqualityNodeId& otherNode : canonicalFormMap[can])
             {
               if (node == otherNode) continue;
@@ -1599,11 +1602,18 @@ void EqualityEngine::computeExtraRedundantEdges()
               {
                 continue;
               }
+              const FunctionApplication& otherApp = d_applications[otherNode].d_original;
+
+              // TODO: computing mergedlevel twice here might be slow
+              uint32_t level = std::max(getMergedLevel(app.d_a, otherApp.d_a),
+                                        getMergedLevel(app.d_b, otherApp.d_b));
+
               addGraphEdge(node,
                            otherNode,
                            MERGED_THROUGH_CONGRUENCE,
                            TNode::null(),
-                           true);
+                           true,
+                           level);
               d_extraEqualitiesCount = d_extraEqualitiesCount + 1;
               if (d_extraEqualitiesCount >= extraEdgesLimit) break;
             }
@@ -1894,7 +1904,7 @@ void EqualityEngine::getExplanationImpl(
               getExplanationImpl(f1.d_a,
                                  f2.d_a,
                                  fuel - 1,
-                                 currentEdge.getLevel(),
+                                 level,
                                  proofSizeEstimates,
                                  equalities,
                                  cache,
@@ -1906,7 +1916,7 @@ void EqualityEngine::getExplanationImpl(
               getExplanationImpl(f1.d_b,
                                  f2.d_b,
                                  fuel - 1,
-                                 currentEdge.getLevel(),
+                                 level,
                                  proofSizeEstimates,
                                  equalities,
                                  cache,
@@ -1951,7 +1961,7 @@ void EqualityEngine::getExplanationImpl(
               getExplanationImpl(eq.d_a,
                                  eq.d_b,
                                  fuel,
-                                 currentEdge.getLevel(),
+                                 level,
                                  proofSizeEstimates,
                                  equalities,
                                  cache,
@@ -2003,7 +2013,7 @@ void EqualityEngine::getExplanationImpl(
                 getExplanationImpl(childId,
                                    getEqualityNode(childId).getFind(),
                                    fuel - 1,
-                                   currentEdge.getLevel(),
+                                   level,
                                    proofSizeEstimates,
                                    equalities,
                                    cache,

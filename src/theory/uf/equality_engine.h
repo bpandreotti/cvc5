@@ -25,6 +25,7 @@
 #include <queue>
 #include <unordered_map>
 #include <vector>
+#include <limits>
 
 #include "context/cdhashmap.h"
 #include "context/cdo.h"
@@ -468,7 +469,12 @@ class EqualityEngine : public context::ContextNotifyObj, protected EnvObj
   std::vector<EqualityEdgeId> d_equalityGraph;
 
   /** Add an edge to the equality graph */
-  void addGraphEdge(EqualityNodeId t1, EqualityNodeId t2, unsigned type, TNode reason, bool isRedundant);
+  void addGraphEdge(EqualityNodeId t1,
+                    EqualityNodeId t2,
+                    unsigned type,
+                    TNode reason,
+                    bool isRedundant,
+                    uint32_t level = std::numeric_limits<uint32_t>::max());
 
   /** Returns the equality node of the given node */
   EqualityNode& getEqualityNode(TNode node);
