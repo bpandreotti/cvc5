@@ -926,8 +926,11 @@ void EqualityEngine::backtrack() {
       d_assertedEqualityPairs.erase(std::make_pair(node1, node2));
       d_assertedEqualityPairs.erase(std::make_pair(node2, node1));
 
-      d_edgeLevels.erase(std::make_pair(node1, node2));
-      d_edgeLevels.erase(std::make_pair(node2, node1));
+      if (keepRedundantEqualities())
+      {
+        d_edgeLevels.erase(std::make_pair(node1, node2));
+        d_edgeLevels.erase(std::make_pair(node2, node1));
+      }
     }
 
     d_equalityEdges.resize(expectedEdgesCount);
@@ -1029,8 +1032,11 @@ void EqualityEngine::addGraphEdge(EqualityNodeId t1, EqualityNodeId t2, unsigned
   d_equalityGraph[t1] = edge;
   d_equalityGraph[t2] = edge | 1;
 
-  d_edgeLevels[std::make_pair(t1, t2)] = level;
-  d_edgeLevels[std::make_pair(t2, t1)] = level;
+  if (keepRedundantEqualities())
+  {
+    d_edgeLevels[std::make_pair(t1, t2)] = level;
+    d_edgeLevels[std::make_pair(t2, t1)] = level;
+  }
 
   if (TraceIsOn("equality::internal")) {
     debugPrintGraph();
