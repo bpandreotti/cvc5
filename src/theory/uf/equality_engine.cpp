@@ -1535,9 +1535,8 @@ void EqualityEngine::computeGreedyWeights()
       FunctionApplication f1 = d_applications[d_equalityEdges[i].getNodeId()].d_original;
       FunctionApplication f2 = d_applications[d_equalityEdges[i + 1].getNodeId()].d_original;
 
-      uint32_t level = d_equalityEdges[i].getLevel();
-      int left = estimateTreeSize(f1.d_a, f2.d_a, level);
-      int right = estimateTreeSize(f1.d_b, f2.d_b, level);
+      int left = estimateTreeSize(f1.d_a, f2.d_a);
+      int right = estimateTreeSize(f1.d_b, f2.d_b);
       d_greedyEdgeWeights[i] = (left > std::numeric_limits<int>::max() - right)
                                    ? std::numeric_limits<int>::max()
                                    : left + right;
@@ -1549,8 +1548,9 @@ void EqualityEngine::computeGreedyWeights()
   }
 }
 
-int EqualityEngine::estimateTreeSize(EqualityNodeId start, EqualityNodeId end, uint32_t maxLevel) {
-    return shortestPath(start, end, maxLevel, std::vector<int>());
+int EqualityEngine::estimateTreeSize(EqualityNodeId start, EqualityNodeId end) {
+    // Since this will ignore redundant edges anyway, the maxLevel is irrelevant
+    return shortestPath(start, end, 0, std::vector<int>());
 }
 
 void EqualityEngine::computeExtraRedundantEdges()

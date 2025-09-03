@@ -654,7 +654,7 @@ class EqualityEngine : public context::ContextNotifyObj, protected EnvObj
 
   void computeGreedyWeights();
 
-  int estimateTreeSize(EqualityNodeId start, EqualityNodeId end, uint32_t maxLevel);
+  int estimateTreeSize(EqualityNodeId start, EqualityNodeId end);
 
   void computeExtraRedundantEdges();
 
