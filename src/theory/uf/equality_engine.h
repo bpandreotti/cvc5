@@ -297,6 +297,9 @@ class EqualityEngine : public context::ContextNotifyObj, protected EnvObj
 
     TimerStat d_explainTimer;
     TimerStat d_assertEqualityTimer;
+    TimerStat d_getMergedLevelTimer;
+    TimerStat d_computeWeightsTimer;
+    TimerStat d_computeEdgesTimer;
 
     Statistics(StatisticsRegistry& sr, const std::string& name);
   };

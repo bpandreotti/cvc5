@@ -44,7 +44,10 @@ EqualityEngine::Statistics::Statistics(StatisticsRegistry& sr,
       d_redundantExplanationSize(
           sr.registerInt(name + "redundantExplanationSize")),
       d_explainTimer(sr.registerTimer(name + "explainTimer")),
-      d_assertEqualityTimer(sr.registerTimer(name + "assertEqualityTimer"))
+      d_assertEqualityTimer(sr.registerTimer(name + "assertEqualityTimer")),
+      d_getMergedLevelTimer(sr.registerTimer(name + "getMergedLevelTimer")),
+      d_computeWeightsTimer(sr.registerTimer(name + "computeWeightsTimer")),
+      d_computeEdgesTimer(sr.registerTimer(name + "computeEdgesTimer"))
 {
 }
 
@@ -512,7 +515,7 @@ bool EqualityEngine::assertEquality(TNode eq,
                                     TNode reason,
                                     unsigned pid)
 {
-  TimerStat::CodeTimer codeTimer(d_stats.d_assertEqualityTimer);
+  TimerStat::CodeTimer codeTimer(d_stats.d_assertEqualityTimer, true);
 
   Trace("equality") << d_name << "::eq::addEquality(" << eq << "," << (polarity ? "true" : "false") << ")" << std::endl;
   if (polarity) {
@@ -1417,6 +1420,8 @@ Node EqualityEngine::mkExplainLit(TNode lit)
 
 uint32_t EqualityEngine::getMergedLevel(EqualityNodeId a, EqualityNodeId b)
 {
+  TimerStat::CodeTimer codeTimer(d_stats.d_getMergedLevelTimer);
+
   std::queue<std::pair<EqualityNodeId, uint32_t>> queue;
   std::unordered_set<EqualityNodeId> seen;
   queue.push(std::make_pair(a, 0));
@@ -1503,6 +1508,8 @@ int EqualityEngine::shortestPath(EqualityNodeId start,
 
 void EqualityEngine::computeTreeOptWeights()
 {
+  TimerStat::CodeTimer codeTimer(d_stats.d_computeWeightsTimer);
+
   for (EqualityEdgeId i = d_treeOptEdgeWeights.size(); i < d_equalityEdges.size(); i++)
   {
     if (d_equalityEdges[i].getReasonType() == MERGED_THROUGH_CONGRUENCE)
@@ -1544,6 +1551,8 @@ void EqualityEngine::computeTreeOptWeights()
 
 void EqualityEngine::computeGreedyWeights()
 {
+  TimerStat::CodeTimer codeTimer(d_stats.d_computeWeightsTimer);
+
   for (EqualityEdgeId i = d_greedyEdgeWeights.size(); i < d_equalityEdges.size(); i++)
   {
     d_greedyEdgeWeights.push_back(0);
@@ -1576,6 +1585,8 @@ int EqualityEngine::estimateTreeSize(EqualityNodeId start, EqualityNodeId end) {
 
 void EqualityEngine::computeExtraRedundantEdges()
 {
+  TimerStat::CodeTimer codeTimer(d_stats.d_computeEdgesTimer);
+
   if (d_extraEdgeAllowance > 0)
   {
     // We define the canonical form of a node f(a, b) as the pair (find(a),
