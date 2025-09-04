@@ -295,6 +295,9 @@ class EqualityEngine : public context::ContextNotifyObj, protected EnvObj
     IntStat d_totalExplanationSize;
     IntStat d_redundantExplanationSize;
 
+    TimerStat d_explainTimer;
+    TimerStat d_assertEqualityTimer;
+
     Statistics(StatisticsRegistry& sr, const std::string& name);
   };
 
