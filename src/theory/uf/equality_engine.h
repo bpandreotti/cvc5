@@ -377,6 +377,9 @@ class EqualityEngine : public context::ContextNotifyObj, protected EnvObj
   /** Number of extra equalities added */
   context::CDO<DefaultSizeType> d_extraEqualitiesCount;
 
+  /** The number of extra edges that may still be added */
+  int d_extraEdgeAllowance;
+
   /** Memory for the use-list nodes */
   std::vector<UseListNode> d_useListNodes;
 

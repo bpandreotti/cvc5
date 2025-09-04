@@ -1026,6 +1026,15 @@ void EqualityEngine::addGraphEdge(EqualityNodeId t1, EqualityNodeId t2, unsigned
                     << d_nodes[t1] << ", {" << t2 << "} " << d_nodes[t2] << ","
                     << reason << ")" << std::endl;
 
+  // This implicitly defines the limit on the number of extra congruence edges computed
+  if (!isRedundant)
+    d_extraEdgeAllowance += 1; // 1 extra edge allowed for each non-redundant edge
+  else
+  {
+    Assert(d_extraEdgeAllowance > 0); // The caller should ensure the allowance is not 0
+    d_extraEdgeAllowance -= 1;
+  }
+
   d_stats.d_totalEdges += 1;
   d_stats.d_redundantEdges += (int)isRedundant;
 
@@ -1567,9 +1576,7 @@ int EqualityEngine::estimateTreeSize(EqualityNodeId start, EqualityNodeId end) {
 
 void EqualityEngine::computeExtraRedundantEdges()
 {
-  // Arbitrary linear limit
-  auto extraEdgesLimit = d_assertedEqualitiesCount * 2;
-  if (d_extraEqualitiesCount < extraEdgesLimit)
+  if (d_extraEdgeAllowance > 0)
   {
     // We define the canonical form of a node f(a, b) as the pair (find(a),
     // find(b)). For each equivalence class, we will find each pair of distinct
@@ -1585,7 +1592,7 @@ void EqualityEngine::computeExtraRedundantEdges()
       ++eqClass;
     }
 
-    while (eqClass < d_nodesCount && d_extraEqualitiesCount < extraEdgesLimit)
+    while (eqClass < d_nodesCount && d_extraEdgeAllowance > 0)
     {
       // This maps a pair to a vector of all the nodes that have this
       // pair as their canonical form
@@ -1627,9 +1634,9 @@ void EqualityEngine::computeExtraRedundantEdges()
                            true,
                            level);
               d_extraEqualitiesCount = d_extraEqualitiesCount + 1;
-              if (d_extraEqualitiesCount >= extraEdgesLimit) break;
+              if (d_extraEdgeAllowance == 0) break;
             }
-            if (d_extraEqualitiesCount >= extraEdgesLimit) break;
+            if (d_extraEdgeAllowance == 0) break;
           }
           else
           {
@@ -2358,7 +2365,7 @@ void EqualityEngine::propagate() {
     // conflict)
     bool isRedundant = t1classId == t2classId;
     if (isRedundant) {
-      if (!keepRedundantEqualities() || (d_isConstant[t1classId] && d_isConstant[t2classId])) {
+      if (!keepRedundantEqualities() || (d_isConstant[t1classId] && d_isConstant[t2classId]) || d_extraEdgeAllowance == 0) {
         continue;
       }
     }
