@@ -39,7 +39,9 @@ EqualityEngine::Statistics::Statistics(StatisticsRegistry& sr,
       d_redundantEdges(sr.registerInt(name + "redundantEdges")),
       d_totalExplanationSize(sr.registerInt(name + "totalExplanationSize")),
       d_redundantExplanationSize(
-          sr.registerInt(name + "redundantExplanationSize"))
+          sr.registerInt(name + "redundantExplanationSize")),
+      d_explainTimer(sr.registerTimer(name + "explainTimer")),
+      d_assertEqualityTimer(sr.registerTimer(name + "assertEqualityTimer"))
 {
 }
 
@@ -545,6 +547,8 @@ bool EqualityEngine::assertPredicate(TNode t,
                                      TNode reason,
                                      unsigned pid)
 {
+  TimerStat::CodeTimer codeTimer(d_stats.d_assertEqualityTimer);
+
   Trace("equality") << d_name << "::eq::addPredicate(" << t << ","
                     << (polarity ? "true" : "false") << ")" << std::endl;
   Assert(t.getKind() != Kind::EQUAL) << "Use assertEquality instead";
@@ -563,6 +567,8 @@ bool EqualityEngine::assertEquality(TNode eq,
                                     TNode reason,
                                     unsigned pid)
 {
+  TimerStat::CodeTimer codeTimer(d_stats.d_assertEqualityTimer);
+
   Trace("equality") << d_name << "::eq::addEquality(" << eq << ","
                     << (polarity ? "true" : "false") << ")" << std::endl;
   if (polarity)
@@ -1851,6 +1857,8 @@ void EqualityEngine::getExplanation(
     EqProof* eqp,
     options::UfAlgorithmMode algo)
 {
+  TimerStat::CodeTimer codeTimer(d_stats.d_explainTimer);
+
   if (keepRedundantEqualities())
     level = std::min(getMergedLevel(t1Id, t2Id), level);
 
