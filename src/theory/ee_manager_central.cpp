@@ -56,16 +56,9 @@ void EqEngineManagerCentral::initializeTheories()
 {
   context::Context* c = context();
   // initialize the shared solver
-  EeSetupInfo esis;
-  if (d_sharedSolver.needsEqualityEngine(esis))
-  {
-    // the shared solver uses central equality engine
-    d_sharedSolver.setEqualityEngine(&d_centralEqualityEngine);
-  }
-  else
-  {
-    Unreachable() << "Expected shared solver to use equality engine";
-  }
+  // the shared solver uses central equality engine
+  d_sharedSolver.setEqualityEngine(&d_centralEqualityEngine);
+
   // whether to use master equality engine as central
   bool masterEqToCentral = true;
   // setup info for each theory

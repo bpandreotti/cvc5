@@ -52,11 +52,6 @@ class SharedSolver : protected EnvObj
   virtual ~SharedSolver() {}
   //------------------------------------- initialization
   /**
-   * Returns true if we need an equality engine, this has the same contract
-   * as Theory::needsEqualityEngine.
-   */
-  virtual bool needsEqualityEngine(theory::EeSetupInfo& esi);
-  /**
    * Set the equality engine. This should be called by equality engine manager
    * during EqEngineManager::initializeTheories.
    */

@@ -41,11 +41,6 @@ SharedSolver::SharedSolver(Env& env, TheoryEngine& te)
 {
 }
 
-bool SharedSolver::needsEqualityEngine(theory::EeSetupInfo& esi)
-{
-  return false;
-}
-
 void SharedSolver::preRegister(TNode atom)
 {
   Trace("theory") << "SharedSolver::preRegister atom " << atom << std::endl;

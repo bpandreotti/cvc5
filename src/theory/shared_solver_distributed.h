@@ -34,11 +34,6 @@ class SharedSolverDistributed : public SharedSolver
   SharedSolverDistributed(Env& env, TheoryEngine& te);
   virtual ~SharedSolverDistributed() {}
   //------------------------------------- initialization
-  /**
-   * Returns true if we need an equality engine, this has the same contract
-   * as Theory::needsEqualityEngine.
-   */
-  bool needsEqualityEngine(theory::EeSetupInfo& esi) override;
   /** Set equality engine in the shared terms database */
   void setEqualityEngine(eq::EqualityEngine* ee) override;
   //------------------------------------- end initialization
