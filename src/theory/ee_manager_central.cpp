@@ -201,7 +201,6 @@ void EqEngineManagerCentral::initializeTheories()
 bool EqEngineManagerCentral::usesCentralEqualityEngine(const Options& opts,
                                                        TheoryId id)
 {
-  Assert(opts.theory.eeMode == options::EqEngineMode::CENTRAL);
   if (id == THEORY_BUILTIN)
   {
     return true;

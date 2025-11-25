@@ -884,13 +884,9 @@ void SetDefaults::setDefaultsPost(const LogicInfo& logic, Options& opts) const
   // set the default decision mode
   setDefaultDecisionMode(logic, opts);
 
-  // set up of central equality engine
-  if (opts.theory.eeMode == options::EqEngineMode::CENTRAL)
-  {
-    // use the arithmetic equality solver by default
-    SET_AND_NOTIFY_IF_NOT_USER(
-        arith, arithEqSolver, true, "central equality engine");
-  }
+  // use the arithmetic equality solver by default
+  SET_AND_NOTIFY_IF_NOT_USER(
+      arith, arithEqSolver, true, "central equality engine");
 
   if (logic.isHigherOrder())
   {

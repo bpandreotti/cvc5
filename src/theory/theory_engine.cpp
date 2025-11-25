@@ -700,13 +700,10 @@ bool TheoryEngine::isTheoryEnabled(theory::TheoryId theoryId) const
 
 theory::TheoryId TheoryEngine::theoryExpPropagation(theory::TheoryId tid) const
 {
-  if (options().theory.eeMode == options::EqEngineMode::CENTRAL)
+  if (EqEngineManagerCentral::usesCentralEqualityEngine(options(), tid)
+      && Theory::expUsingCentralEqualityEngine(tid))
   {
-    if (EqEngineManagerCentral::usesCentralEqualityEngine(options(), tid)
-        && Theory::expUsingCentralEqualityEngine(tid))
-    {
-      return THEORY_BUILTIN;
-    }
+    return THEORY_BUILTIN;
   }
   return tid;
 }
@@ -1186,14 +1183,11 @@ void TheoryEngine::assertFact(TNode literal)
                                << "): sending requested " << toAssert << endl;
         assertToTheory(
             toAssert, literal, request.d_toTheory, THEORY_SAT_SOLVER);
-        if (options().theory.eeMode == options::EqEngineMode::CENTRAL)
-        {
-          // Also send to THEORY_BUILTIN, similar to above
-          assertToTheory(toAssert,
-                        literal,
-                        /* to */ THEORY_BUILTIN,
-                        /* from */ THEORY_SAT_SOLVER);
-        }
+        // Also send to THEORY_BUILTIN, similar to above
+        assertToTheory(toAssert,
+                      literal,
+                      /* to */ THEORY_BUILTIN,
+                      /* from */ THEORY_SAT_SOLVER);
         it.next();
       }
     }
