@@ -59,21 +59,6 @@ name   = "Theory Layer"
   help       = "enable analysis of relevance of asserted literals with respect to the input formula"
 
 [[option]]
-  name       = "eeMode"
-  category   = "regular"
-  long       = "ee-mode=MODE"
-  type       = "EqEngineMode"
-  default    = "DISTRIBUTED"
-  help       = "mode for managing equalities across theory solvers"
-  help_mode  = "Defines mode for managing equalities across theory solvers."
-[[option.mode.DISTRIBUTED]]
-  name = "distributed"
-  help = "Each theory maintains its own equality engine."
-[[option.mode.CENTRAL]]
-  name = "central"
-  help = "All applicable theories use the central equality engine."
-
-[[option]]
   name       = "tcMode"
   category   = "expert"
   long       = "tc-mode=MODE"
