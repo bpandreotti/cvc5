@@ -63,6 +63,11 @@ const EeTheoryInfo* EqEngineManager::getEeTheoryInfo(TheoryId tid) const
   return nullptr;
 }
 
+eq::EqualityEngine* EqEngineManager::getCentralEqualityEngine()
+{
+  return &d_centralEqualityEngine;
+}
+
 eq::EqualityEngine* EqEngineManager::allocateEqualityEngine(EeSetupInfo& esi,
                                                             context::Context* c)
 {

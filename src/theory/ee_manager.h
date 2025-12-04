@@ -77,6 +77,8 @@ class EqEngineManager : protected EnvObj
    */
   const EeTheoryInfo* getEeTheoryInfo(TheoryId tid) const;
 
+  eq::EqualityEngine* getCentralEqualityEngine();
+
   /** Allocate equality engine that is context-dependent on c with info esi */
   eq::EqualityEngine* allocateEqualityEngine(EeSetupInfo& esi,
                                              context::Context* c);

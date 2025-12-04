@@ -113,8 +113,6 @@ class ModelManager : protected EnvObj
   context::Context d_modelEeContext;
   /** Pointer to the equality engine of the model */
   eq::EqualityEngine* d_modelEqualityEngine;
-  /** The equality engine of the model, if we allocated it */
-  std::unique_ptr<eq::EqualityEngine> d_modelEqualityEngineAlloc;
   /** The model object we have allocated (if one exists) */
   std::unique_ptr<TheoryModel> d_model;
   /** The model builder object we are using */

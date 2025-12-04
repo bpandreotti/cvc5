@@ -32,7 +32,6 @@ ModelManager::ModelManager(Env& env, TheoryEngine& te, EqEngineManager& eem)
       d_te(te),
       d_eem(eem),
       d_modelEqualityEngine(nullptr),
-      d_modelEqualityEngineAlloc(nullptr),
       d_model(new TheoryModel(
           env, "DefaultModel", options().theory.assignFunctionValues)),
       d_modelBuilder(nullptr),
@@ -66,15 +65,9 @@ void ModelManager::finishInit()
     d_modelBuilder = d_alocModelBuilder.get();
   }
 
-  // initialize the model equality engine, use the provided notification object,
-  // which belongs e.g. to CombinationModelBased
-  EeSetupInfo esim;
-  esim.d_notify = nullptr;
-  esim.d_name = d_model->getName() + "::ee";
-  esim.d_constantsAreTriggers = false;
-  d_modelEqualityEngineAlloc.reset(
-      d_eem.allocateEqualityEngine(esim, &d_modelEeContext));
-  d_modelEqualityEngine = d_modelEqualityEngineAlloc.get();
+  // The model manager uses the central equality engine
+  d_modelEqualityEngine = d_eem.getCentralEqualityEngine();
+
   // finish initializing the model
   d_model->finishInit(d_modelEqualityEngine);
   // We push a context during initialization since the model is cleared during
