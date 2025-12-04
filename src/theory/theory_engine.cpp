@@ -37,7 +37,6 @@
 #include "theory/combination_care_graph.h"
 #include "theory/conflict_processor.h"
 #include "theory/decision_manager.h"
-#include "theory/ee_manager_central.h"
 #include "theory/partition_generator.h"
 #include "theory/plugin_module.h"
 #include "theory/quantifiers/first_order_model.h"
@@ -700,7 +699,7 @@ bool TheoryEngine::isTheoryEnabled(theory::TheoryId theoryId) const
 
 theory::TheoryId TheoryEngine::theoryExpPropagation(theory::TheoryId tid) const
 {
-  if (EqEngineManagerCentral::usesCentralEqualityEngine(options(), tid)
+  if (EqEngineManager::usesCentralEqualityEngine(options(), tid)
       && Theory::expUsingCentralEqualityEngine(tid))
   {
     return THEORY_BUILTIN;

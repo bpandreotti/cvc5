@@ -725,8 +725,6 @@ libcvc5_add_sources(
   theory/difficulty_manager.h
   theory/ee_manager.cpp
   theory/ee_manager.h
-  theory/ee_manager_central.cpp
-  theory/ee_manager_central.h
   theory/ee_setup_info.h
   theory/evaluator.cpp
   theory/evaluator.h

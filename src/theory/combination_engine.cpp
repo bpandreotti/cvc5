@@ -18,7 +18,6 @@
 #include "expr/node_visitor.h"
 #include "proof/eager_proof_generator.h"
 #include "theory/care_graph.h"
-#include "theory/ee_manager_central.h"
 #include "theory/model_manager.h"
 #include "theory/model_manager_distributed.h"
 #include "theory/shared_solver_distributed.h"
@@ -46,8 +45,7 @@ CombinationEngine::CombinationEngine(Env& env,
   // distributed one for now
   d_sharedSolver.reset(new SharedSolverDistributed(env, d_te));
   // make the central equality engine manager
-  d_eemanager.reset(
-      new EqEngineManagerCentral(env, d_te, *d_sharedSolver.get()));
+  d_eemanager.reset(new EqEngineManager(env, d_te, *d_sharedSolver.get()));
   // make the distributed model manager
   d_mmanager.reset(new ModelManagerDistributed(env, d_te, *d_eemanager.get()));
 }
@@ -77,7 +75,6 @@ void CombinationEngine::resetModel() { d_mmanager->resetModel(); }
 
 void CombinationEngine::postProcessModel(bool incomplete)
 {
-  d_eemanager->notifyModel(incomplete);
   // postprocess with the model
   d_mmanager->postProcessModel(incomplete);
 }
