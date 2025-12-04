@@ -782,8 +782,6 @@ libcvc5_add_sources(
   theory/logic_info.h
   theory/model_manager.cpp
   theory/model_manager.h
-  theory/model_manager_distributed.cpp
-  theory/model_manager_distributed.h
   theory/output_channel.cpp
   theory/output_channel.h
   theory/quantifiers/alpha_equivalence.cpp

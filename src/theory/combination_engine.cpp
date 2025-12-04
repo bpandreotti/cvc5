@@ -19,7 +19,6 @@
 #include "proof/eager_proof_generator.h"
 #include "theory/care_graph.h"
 #include "theory/model_manager.h"
-#include "theory/model_manager_distributed.h"
 #include "theory/shared_solver_distributed.h"
 #include "theory/theory_engine.h"
 
@@ -46,8 +45,8 @@ CombinationEngine::CombinationEngine(Env& env,
   d_sharedSolver.reset(new SharedSolverDistributed(env, d_te));
   // make the central equality engine manager
   d_eemanager.reset(new EqEngineManager(env, d_te, *d_sharedSolver.get()));
-  // make the distributed model manager
-  d_mmanager.reset(new ModelManagerDistributed(env, d_te, *d_eemanager.get()));
+  // make the model manager
+  d_mmanager.reset(new ModelManager(env, d_te, *d_eemanager.get()));
 }
 
 CombinationEngine::~CombinationEngine() {}

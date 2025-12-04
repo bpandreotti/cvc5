@@ -41,7 +41,11 @@ ModelManager::ModelManager(Env& env, TheoryEngine& te, EqEngineManager& eem)
 {
 }
 
-ModelManager::~ModelManager() {}
+ModelManager::~ModelManager()
+{
+  // pop the model context which we pushed on initialization
+  d_modelEeContext.pop();
+}
 
 void ModelManager::finishInit(eq::EqualityEngineNotify* notify)
 {
@@ -63,6 +67,24 @@ void ModelManager::finishInit(eq::EqualityEngineNotify* notify)
   }
   // notice that the equality engine of the model has yet to be assigned.
   initializeModelEqEngine(notify);
+}
+
+void ModelManager::initializeModelEqEngine(eq::EqualityEngineNotify* notify)
+{
+  // initialize the model equality engine, use the provided notification object,
+  // which belongs e.g. to CombinationModelBased
+  EeSetupInfo esim;
+  esim.d_notify = notify;
+  esim.d_name = d_model->getName() + "::ee";
+  esim.d_constantsAreTriggers = false;
+  d_modelEqualityEngineAlloc.reset(
+      d_eem.allocateEqualityEngine(esim, &d_modelEeContext));
+  d_modelEqualityEngine = d_modelEqualityEngineAlloc.get();
+  // finish initializing the model
+  d_model->finishInit(d_modelEqualityEngine);
+  // We push a context during initialization since the model is cleared during
+  // collectModelInfo using pop/push.
+  d_modelEeContext.push();
 }
 
 void ModelManager::resetModel()
@@ -154,6 +176,74 @@ void ModelManager::postProcessModel(bool incomplete)
 }
 
 theory::TheoryModel* ModelManager::getModel() { return d_model.get(); }
+
+bool ModelManager::prepareModel()
+{
+  Trace("model-builder") << "ModelManager: reset model..." << std::endl;
+
+  // push/pop to clear the equality engine of the model
+  d_modelEeContext.pop();
+  d_modelEeContext.push();
+
+  // Collect model info from the theories
+  Trace("model-builder") << "ModelManager: Collect model info..." << std::endl;
+  // Consult each active theory to get all relevant information concerning the
+  // model, which includes both dump their equality information and assigning
+  // values. Notice the order of theories here is important and is the same
+  // as the list in CVC5_FOR_EACH_THEORY in theory_engine.cpp.
+  const LogicInfo& logicInfo = d_env.getLogicInfo();
+  for (TheoryId theoryId = theory::THEORY_FIRST; theoryId < theory::THEORY_LAST;
+       ++theoryId)
+  {
+    if (!logicInfo.isTheoryEnabled(theoryId))
+    {
+      // theory not active, skip
+      continue;
+    }
+    Theory* t = d_te.theoryOf(theoryId);
+    if (theoryId == TheoryId::THEORY_BOOL
+        || theoryId == TheoryId::THEORY_BUILTIN)
+    {
+      Trace("model-builder")
+          << "  Skipping theory " << theoryId
+          << " as it does not contribute to the model anyway" << std::endl;
+      continue;
+    }
+    Trace("model-builder") << "  CollectModelInfo on theory: " << theoryId
+                           << std::endl;
+    // collect the asserted terms
+    std::set<Node> termSet;
+    t->collectAssertedTermsForModel(termSet);
+    // also get relevant terms
+    t->computeRelevantTerms(termSet);
+    if (!t->collectModelInfo(d_model.get(), termSet))
+    {
+      Trace("model-builder")
+          << "ModelManager: fail collect model info" << std::endl;
+      return false;
+    }
+  }
+
+  if (!collectModelBooleanVariables())
+  {
+    Trace("model-builder") << "ModelManager: fail Boolean variables"
+                           << std::endl;
+    return false;
+  }
+
+  return true;
+}
+
+bool ModelManager::finishBuildModel() const
+{
+  // do not use relevant terms
+  if (!d_modelBuilder->buildModel(d_model.get()))
+  {
+    Trace("model-builder") << "ModelManager: fail build model" << std::endl;
+    return false;
+  }
+  return true;
+}
 
 bool ModelManager::collectModelBooleanVariables()
 {
