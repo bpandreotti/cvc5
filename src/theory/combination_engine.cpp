@@ -60,9 +60,8 @@ void CombinationEngine::finishInit()
   d_eemanager->initializeTheories();
 
   Assert(d_mmanager != nullptr);
-  // initialize the model manager, based on the notify object of this class
-  eq::EqualityEngineNotify* meen = getModelEqualityEngineNotify();
-  d_mmanager->finishInit(meen);
+  // initialize the model manager
+  d_mmanager->finishInit();
 }
 
 const EeTheoryInfo* CombinationEngine::getEeTheoryInfo(TheoryId tid) const
@@ -88,12 +87,6 @@ SharedSolver* CombinationEngine::getSharedSolver()
   return d_sharedSolver.get();
 }
 bool CombinationEngine::isProofEnabled() const { return d_cmbsPg != nullptr; }
-
-eq::EqualityEngineNotify* CombinationEngine::getModelEqualityEngineNotify()
-{
-  // by default, no notifications from model's equality engine
-  return nullptr;
-}
 
 void CombinationEngine::resetRound()
 {

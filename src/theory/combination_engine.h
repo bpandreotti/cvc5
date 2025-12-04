@@ -100,11 +100,6 @@ class CombinationEngine : protected EnvObj
  protected:
   /** Is proof enabled? */
   bool isProofEnabled() const;
-  /**
-   * Get model equality engine notify. Return the notification object for
-   * who listens to the model's equality engine (if any).
-   */
-  virtual eq::EqualityEngineNotify* getModelEqualityEngineNotify();
   /** Reference to the theory engine */
   TheoryEngine& d_te;
   /** Valuation for the engine */

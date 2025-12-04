@@ -50,10 +50,8 @@ class ModelManager : protected EnvObj
    * Finish initializing this class, which allocates the model, the model
    * builder as well as the equality engine of the model. The equality engine
    * to use is determined by the virtual method initializeModelEqEngine.
-   *
-   * @param notify The object that wants to be notified for callbacks occurring
    */
-  void finishInit(eq::EqualityEngineNotify* notify);
+  void finishInit();
   /** Reset model, called during full effort check before the model is built */
   void resetModel();
   /**
@@ -95,12 +93,6 @@ class ModelManager : protected EnvObj
   bool finishBuildModel() const;
   //------------------------ end finer grained control over model building
  protected:
-  /**
-   * Initialize model equality engine. This is called at the end of finish
-   * init, after we have created a model object but before we have assigned it
-   * an equality engine.
-   */
-  void initializeModelEqEngine(eq::EqualityEngineNotify* notify);
   /**
    * Collect model Boolean variables.
    * This asserts the values of all boolean variables to the equality engine of

@@ -47,7 +47,7 @@ ModelManager::~ModelManager()
   d_modelEeContext.pop();
 }
 
-void ModelManager::finishInit(eq::EqualityEngineNotify* notify)
+void ModelManager::finishInit()
 {
   // construct the model
   // Initialize the model and model builder.
@@ -65,16 +65,11 @@ void ModelManager::finishInit(eq::EqualityEngineNotify* notify)
     d_alocModelBuilder.reset(new TheoryEngineModelBuilder(d_env));
     d_modelBuilder = d_alocModelBuilder.get();
   }
-  // notice that the equality engine of the model has yet to be assigned.
-  initializeModelEqEngine(notify);
-}
 
-void ModelManager::initializeModelEqEngine(eq::EqualityEngineNotify* notify)
-{
   // initialize the model equality engine, use the provided notification object,
   // which belongs e.g. to CombinationModelBased
   EeSetupInfo esim;
-  esim.d_notify = notify;
+  esim.d_notify = nullptr;
   esim.d_name = d_model->getName() + "::ee";
   esim.d_constantsAreTriggers = false;
   d_modelEqualityEngineAlloc.reset(
