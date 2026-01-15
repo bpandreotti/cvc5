@@ -679,7 +679,7 @@ class EqualityEngine : public context::ContextNotifyObj, protected EnvObj
 
   void computeTreeOptWeights();
 
-  void computeGreedyWeights();
+  int getGreedyWeight(EqualityEdgeId edgeId);
 
   int estimateTreeSize(EqualityNodeId start, EqualityNodeId end);
 
@@ -712,11 +712,10 @@ class EqualityEngine : public context::ContextNotifyObj, protected EnvObj
       EqualityNodeId t2Id,
       int fuel,
       uint32_t level,
-      const std::vector<int>& proofSizeEstimates,
       std::vector<TNode>& equalities,
       std::map<std::pair<EqualityNodeId, EqualityNodeId>, EqProof*>& cache,
       EqProof* eqp,
-      ExplainAlgorithm algo);
+      options::UfAlgorithmMode algo);
 
   /**
    * Print the equality graph.

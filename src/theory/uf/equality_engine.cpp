@@ -1738,38 +1738,75 @@ void EqualityEngine::computeTreeOptWeights()
   }
 }
 
-void EqualityEngine::computeGreedyWeights()
-{
-  TimerStat::CodeTimer codeTimer(d_stats.d_computeWeightsTimer);
+int EqualityEngine::getGreedyWeight(EqualityEdgeId edgeId) {
+  TimerStat::CodeTimer codeTimer(d_stats.d_computeWeightsTimer, true);
 
-  for (EqualityEdgeId i = d_greedyEdgeWeights.size(); i < d_equalityEdges.size(); i++)
+  if (edgeId < d_greedyEdgeWeights.size()
+      && d_greedyEdgeWeights[edgeId] != std::numeric_limits<int>::max())
   {
-    d_greedyEdgeWeights.push_back(0);
-    if (i % 2 == 1)
-    {
-      d_greedyEdgeWeights[i] = d_greedyEdgeWeights[i - 1];
-    }
-    else if (d_equalityEdges[i].getReasonType() == MERGED_THROUGH_CONGRUENCE)
-    {
-      FunctionApplication f1 = d_applications[d_equalityEdges[i].getNodeId()].d_original;
-      FunctionApplication f2 = d_applications[d_equalityEdges[i + 1].getNodeId()].d_original;
-
-      int left = estimateTreeSize(f1.d_a, f2.d_a);
-      int right = estimateTreeSize(f1.d_b, f2.d_b);
-      d_greedyEdgeWeights[i] = (left > std::numeric_limits<int>::max() - right)
-                                   ? std::numeric_limits<int>::max()
-                                   : left + right;
-    }
-    else
-    {
-      d_greedyEdgeWeights[i] = 1;
-    }
+    return d_greedyEdgeWeights[edgeId];
   }
+
+  for (EqualityEdgeId i = d_greedyEdgeWeights.size(); i <= edgeId; i++)
+  {
+    d_greedyEdgeWeights.push_back(std::numeric_limits<int>::max());
+  }
+
+  int weight = 1;
+  if (d_equalityEdges[edgeId].getReasonType() == MERGED_THROUGH_CONGRUENCE)
+  {
+    EqualityNodeId node1 = d_equalityEdges[edgeId].getNodeId();
+    const FunctionApplication& f1 = d_applications[node1].d_original;
+
+    EqualityNodeId node2 = d_equalityEdges[edgeId ^ 1].getNodeId();
+    const FunctionApplication& f2 = d_applications[node2].d_original;
+
+    int left = estimateTreeSize(f1.d_a, f2.d_a);
+    int right = estimateTreeSize(f1.d_b, f2.d_b);
+    weight = (left > std::numeric_limits<int>::max() - right)
+                     ? std::numeric_limits<int>::max()
+                     : left + right;
+  }
+
+  d_greedyEdgeWeights[edgeId] = weight;
+  return weight;
 }
 
 int EqualityEngine::estimateTreeSize(EqualityNodeId start, EqualityNodeId end) {
-    // Since this will ignore redundant edges anyway, the maxLevel is irrelevant
-    return shortestPath(start, end, 0, std::vector<int>());
+  std::unordered_map<EqualityNodeId, EqualityEdgeId> traversed;
+  std::queue<std::pair<EqualityNodeId, EqualityEdgeId>> queue;
+
+  queue.push(std::make_pair(start, null_edge));
+
+  while (!queue.empty())
+  {
+    auto current = queue.front();
+    EqualityEdgeId node = current.first;
+    EqualityEdgeId traversedEdge = current.second;
+    queue.pop();
+    traversed[node] = traversedEdge;
+
+    if (node == end) {
+      int total = 0;
+      for (EqualityEdgeId edge = traversed[end]; edge != null_edge;
+           edge = traversed[d_equalityEdges[edge ^ 1].getNodeId()])
+      {
+        total += getGreedyWeight(edge);
+      }
+      return total;
+    }
+
+    for (EqualityEdgeId edge = d_equalityGraph[node]; edge != null_edge;
+         edge = d_equalityEdges[edge].getNext())
+    {
+      if (d_equalityEdges[edge].isRedundant()) continue;
+      if ((edge | 1u) == (traversedEdge | 1u)) continue;
+
+      queue.push(std::make_pair(d_equalityEdges[edge].getNodeId(), edge));
+    }
+  }
+  Assert(false);
+  return std::numeric_limits<int>::max();
 }
 
 void EqualityEngine::computeExtraRedundantEdges()
@@ -1886,19 +1923,18 @@ void EqualityEngine::getExplanation(
   if (algo == options::UfAlgorithmMode::VANILLA)
   {
     getExplanationImpl(
-        t1Id, t2Id, std::numeric_limits<int>::max(), level, std::vector<int>(), equalities, cache, eqp, algo);
+        t1Id, t2Id, std::numeric_limits<int>::max(), level, equalities, cache, eqp, algo);
   }
   else if (algo == options::UfAlgorithmMode::TREE_OPT)
   {
     computeTreeOptWeights();
     getExplanationImpl(
-        t1Id, t2Id, std::numeric_limits<int>::max(), level, d_treeOptEdgeWeights, equalities, cache, eqp, algo);
+        t1Id, t2Id, std::numeric_limits<int>::max(), level, equalities, cache, eqp, algo);
   }
   else
   {
-    computeGreedyWeights();
     getExplanationImpl(
-        t1Id, t2Id, options().uf.ufFuel, level, d_greedyEdgeWeights, equalities, cache, eqp, algo);
+        t1Id, t2Id, options().uf.ufFuel, level, equalities, cache, eqp, algo);
   }
 }
 
@@ -1907,15 +1943,14 @@ void EqualityEngine::getExplanationImpl(
       EqualityNodeId t2Id,
       int fuel,
       uint32_t level,
-      const std::vector<int>& proofSizeEstimates,
       std::vector<TNode>& equalities,
       std::map<std::pair<EqualityNodeId, EqualityNodeId>, EqProof*>& cache,
       EqProof* eqp,
-      ExplainAlgorithm algo)
+      options::UfAlgorithmMode algo)
 {
   if (fuel <= 0) {
     return getExplanationImpl(
-        t1Id, t2Id, std::numeric_limits<int>::max(), level, std::vector<int>(), equalities, cache, eqp, ExplainAlgorithm::Vanilla);
+        t1Id, t2Id, std::numeric_limits<int>::max(), level, equalities, cache, eqp, options::UfAlgorithmMode::VANILLA);
   }
   Trace("eq-exp") << d_name << "::eq::getExplanation({" << t1Id << "} "
                   << d_nodes[t1Id] << ", {" << t2Id << "} " << d_nodes[t2Id]
@@ -2050,7 +2085,7 @@ void EqualityEngine::getExplanationImpl(
       const EqualityEdge& edge = d_equalityEdges[currentEdgeId];
 
       bool isBackEdge = (currentEdgeId | 1u) == (current.d_edgeId | 1u);
-      bool isForbidden = edge.getLevel() > level && edge.isRedundant();
+      bool isForbidden = (edge.getLevel() > level || algo == options::UfAlgorithmMode::VANILLA) && edge.isRedundant();
 
       // If not just the backwards edge, or forbidden edge
       if (!isBackEdge && !isForbidden)
@@ -2133,7 +2168,6 @@ void EqualityEngine::getExplanationImpl(
                                  f2.d_a,
                                  fuel - 1,
                                  level,
-                                 proofSizeEstimates,
                                  equalities,
                                  cache,
                                  eqpc1.get(),
@@ -2146,7 +2180,6 @@ void EqualityEngine::getExplanationImpl(
                                  f2.d_b,
                                  fuel - 1,
                                  level,
-                                 proofSizeEstimates,
                                  equalities,
                                  cache,
                                  eqpc2.get(),
@@ -2191,7 +2224,6 @@ void EqualityEngine::getExplanationImpl(
                                  eq.d_b,
                                  fuel,
                                  level,
-                                 proofSizeEstimates,
                                  equalities,
                                  cache,
                                  eqpc1.get(),
@@ -2245,7 +2277,6 @@ void EqualityEngine::getExplanationImpl(
                                    getEqualityNode(childId).getFind(),
                                    fuel - 1,
                                    level,
-                                   proofSizeEstimates,
                                    equalities,
                                    cache,
                                    eqpcc.get(),
@@ -2368,8 +2399,12 @@ void EqualityEngine::getExplanationImpl(
         }
 
         // Push to the visitation queue if it's not the backward edge
-        auto edgeWeight =
-            proofSizeEstimates.empty() ? 1 : proofSizeEstimates[currentEdgeId];
+        int edgeWeight = 1;
+        if (algo == options::UfAlgorithmMode::GREEDY)
+          edgeWeight = getGreedyWeight(currentEdgeId);
+        else if (algo == options::UfAlgorithmMode::TREE_OPT)
+          edgeWeight = d_treeOptEdgeWeights[currentEdgeId];
+
         auto newDist =
             (currentDist > std::numeric_limits<int>::max() - edgeWeight)
                 ? std::numeric_limits<int>::max()
