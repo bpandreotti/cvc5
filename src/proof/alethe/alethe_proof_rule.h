@@ -192,6 +192,11 @@ enum class AletheRule : uint32_t
   // Tautology of linear arithmetic that can be checked without sophisticated
   // reasoning.
   LA_TAUTOLOGY,
+  // ======== arith_poly_norm
+  // > i. (= t s)
+  // where `arith::PolyNorm::isArithPolyNorm(s, t)` is true, i.e., where t and s
+  // are equivalent after arithmetic normalization
+  ARITH_POLY_NORM,
   // ======== forall_inst
   // > i. (or (not (forall (x1 ... xn) P)) P[t1/x1]...[tn/xn])
   // args = ((:= x_k1 tk1) ... (:= xkn tkn))
@@ -398,6 +403,7 @@ enum class AletheRule : uint32_t
   QNT_SIMPLIFY,
   ALL_SIMPLIFY,
   RARE_REWRITE,
+  EVALUATE,
   // ======== let
   // G,x1->F1,...,xn->Fn > j. (= G G')
   // ---------------------------------

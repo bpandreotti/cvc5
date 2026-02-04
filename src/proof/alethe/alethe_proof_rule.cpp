@@ -67,6 +67,7 @@ const char* aletheRuleToString(AletheRule id)
     case AletheRule::LA_DISEQUALITY: return "la_disequality";
     case AletheRule::LA_TOTALITY: return "la_totality";
     case AletheRule::LA_TAUTOLOGY: return "la_tautology";
+    case AletheRule::ARITH_POLY_NORM: return "arith_poly_norm";
     case AletheRule::FORALL_INST: return "forall_inst";
     case AletheRule::QNT_JOIN: return "qnt_join";
     case AletheRule::QNT_RM_UNUSED: return "qnt_rm_unused";
@@ -123,6 +124,7 @@ const char* aletheRuleToString(AletheRule id)
     case AletheRule::SKO_FORALL: return "sko_forall";
     case AletheRule::ALL_SIMPLIFY: return "all_simplify";
     case AletheRule::RARE_REWRITE: return "rare_rewrite";
+    case AletheRule::EVALUATE: return "evaluate";
     case AletheRule::SYMM: return "symm";
     case AletheRule::NOT_SYMM: return "not_symm";
     case AletheRule::REORDERING: return "reordering";

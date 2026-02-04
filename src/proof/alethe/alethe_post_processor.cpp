@@ -682,27 +682,14 @@ bool AletheProofPostprocessCallback::update(Node res,
                            new_args,
                            *cdp);
     }
-    // Both ARITH_POLY_NORM and EVALUATE, which are used by the Rare
-    // elaboration, are captured by the "rare_rewrite" rule.
-    case ProofRule::ARITH_POLY_NORM:
-    {
-      return addAletheStep(
-          AletheRule::RARE_REWRITE,
-          res,
-          nm->mkNode(Kind::SEXPR, d_cl, res),
-          children,
-          {NodeManager::mkRawSymbol("\"arith-poly-norm\"", nm->sExprType())},
-          *cdp);
-    }
     case ProofRule::EVALUATE:
     {
-      return addAletheStep(
-          AletheRule::RARE_REWRITE,
-          res,
-          nm->mkNode(Kind::SEXPR, d_cl, res),
-          children,
-          {NodeManager::mkRawSymbol("\"evaluate\"", nm->sExprType())},
-          *cdp);
+      return addAletheStep(AletheRule::EVALUATE,
+                           res,
+                           nm->mkNode(Kind::SEXPR, d_cl, res),
+                           children,
+                           {},
+                           *cdp);
     }
     // If the trusted rule is a theory lemma from arithmetic, we try to phrase
     // it with "lia_generic".
@@ -2055,6 +2042,15 @@ bool AletheProofPostprocessCallback::update(Node res,
                            nm->mkNode(Kind::SEXPR, d_cl, res),
                            resChildren,
                            d_resPivots ? resArgs : std::vector<Node>(),
+                           *cdp);
+    }
+    case ProofRule::ARITH_POLY_NORM:
+    {
+      return addAletheStep(AletheRule::ARITH_POLY_NORM,
+                           res,
+                           nm->mkNode(Kind::SEXPR, d_cl, res),
+                           children,
+                           {},
                            *cdp);
     }
     // Direct translation
