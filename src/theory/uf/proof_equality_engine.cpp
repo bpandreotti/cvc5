@@ -15,8 +15,8 @@
 #include "options/uf_options.h"
 #include "proof/lazy_proof_chain.h"
 #include "proof/proof_node.h"
-#include "proof/proof_node_manager.h"
 #include "proof/proof_node_algorithm.h"
+#include "proof/proof_node_manager.h"
 #include "smt/env.h"
 #include "theory/rewriter.h"
 #include "theory/uf/eq_proof.h"
@@ -293,7 +293,7 @@ TrustNode ProofEqEngine::explain(Node conc)
   std::vector<TNode> assumps;
   explainWithProof(conc, assumps, &tmpProof);
   std::vector<Node> toBlock;
-  for (auto a :assumps)
+  for (auto a : assumps)
   {
     toBlock.push_back(a);
     toBlock.push_back(CDProof::getSymmFact(a));
@@ -498,7 +498,8 @@ bool ProofEqEngine::holds(TNode atom, bool polarity)
   return d_ee.areEqual(atom, b);
 }
 
-size_t getEqProofSize(Env& env, eq::EqProof& proof) {
+size_t getEqProofSize(Env& env, eq::EqProof& proof)
+{
   LazyCDProof tmpProof(env);
   proof.addToProof(&tmpProof);
   return tmpProof.getNumProofNodes();
@@ -512,7 +513,8 @@ void ProofEqEngine::explainWithProof(Node lit,
   {
     return;
   }
-  bool isRunningExperiment = options().uf.ufAlgorithmMode == options::UfAlgorithmMode::ALL;
+  bool isRunningExperiment =
+      options().uf.ufAlgorithmMode == options::UfAlgorithmMode::ALL;
 
   std::shared_ptr<eq::EqProof> pf = std::make_shared<eq::EqProof>();
   Trace("pfee-proof") << "pfee::explainWithProof: " << lit << std::endl;
@@ -533,37 +535,78 @@ void ProofEqEngine::explainWithProof(Node lit,
       // ensure the explanation exists
       AlwaysAssert(d_ee.areDisequal(atom[0], atom[1], true));
     }
-    if (isRunningExperiment) {
-      d_ee.explainEquality(atom[0], atom[1], polarity, tassumps, options::UfAlgorithmMode::VANILLA, pf.get());
+    if (isRunningExperiment)
+    {
+      d_ee.explainEquality(atom[0],
+                           atom[1],
+                           polarity,
+                           tassumps,
+                           options::UfAlgorithmMode::VANILLA,
+                           pf.get());
       auto greedyPf = eq::EqProof();
-      d_ee.explainEquality(atom[0], atom[1], polarity, tassumps, options::UfAlgorithmMode::GREEDY, &greedyPf);
+      d_ee.explainEquality(atom[0],
+                           atom[1],
+                           polarity,
+                           tassumps,
+                           options::UfAlgorithmMode::GREEDY,
+                           &greedyPf);
       auto treeOptPf = eq::EqProof();
-      d_ee.explainEquality(atom[0], atom[1], polarity, tassumps, options::UfAlgorithmMode::TREE_OPT, &treeOptPf);
-      Trace("cc-experiments") << "proof sizes: "
-                << getEqProofSize(d_env, *pf.get()) << ","
-                << getEqProofSize(d_env, greedyPf) << ","
-                << getEqProofSize(d_env, treeOptPf) << std::endl;
-    } else {
-      d_ee.explainEquality(atom[0], atom[1], polarity, tassumps, options().uf.ufAlgorithmMode, pf.get());
-      Trace("cc-experiments") << "proof sizes: " << getEqProofSize(d_env, *pf.get()) << std::endl;
+      d_ee.explainEquality(atom[0],
+                           atom[1],
+                           polarity,
+                           tassumps,
+                           options::UfAlgorithmMode::TREE_OPT,
+                           &treeOptPf);
+      Trace("cc-experiments")
+          << "proof sizes: " << getEqProofSize(d_env, *pf.get()) << ","
+          << getEqProofSize(d_env, greedyPf) << ","
+          << getEqProofSize(d_env, treeOptPf) << std::endl;
+    }
+    else
+    {
+      d_ee.explainEquality(atom[0],
+                           atom[1],
+                           polarity,
+                           tassumps,
+                           options().uf.ufAlgorithmMode,
+                           pf.get());
+      Trace("cc-experiments")
+          << "proof sizes: " << getEqProofSize(d_env, *pf.get()) << std::endl;
     }
   }
   else
   {
     Assert(d_ee.hasTerm(atom));
-    if (isRunningExperiment) {
-      d_ee.explainPredicate(atom, polarity, tassumps, options::UfAlgorithmMode::VANILLA, pf.get());
+    if (isRunningExperiment)
+    {
+      d_ee.explainPredicate(atom,
+                            polarity,
+                            tassumps,
+                            options::UfAlgorithmMode::VANILLA,
+                            pf.get());
       auto greedyPf = eq::EqProof();
-      d_ee.explainPredicate(atom, polarity, tassumps, options::UfAlgorithmMode::GREEDY, &greedyPf);
+      d_ee.explainPredicate(atom,
+                            polarity,
+                            tassumps,
+                            options::UfAlgorithmMode::GREEDY,
+                            &greedyPf);
       auto treeOptPf = eq::EqProof();
-      d_ee.explainPredicate(atom, polarity, tassumps, options::UfAlgorithmMode::TREE_OPT, &treeOptPf);
-      Trace("cc-experiments") << "proof sizes: "
-                << getEqProofSize(d_env, *pf.get()) << ","
-                << getEqProofSize(d_env, greedyPf) << ","
-                << getEqProofSize(d_env, treeOptPf) << std::endl;
-    } else {
-      d_ee.explainPredicate(atom, polarity, tassumps, options().uf.ufAlgorithmMode, pf.get());
-      Trace("cc-experiments") << "proof sizes: " << getEqProofSize(d_env, *pf.get()) << std::endl;
+      d_ee.explainPredicate(atom,
+                            polarity,
+                            tassumps,
+                            options::UfAlgorithmMode::TREE_OPT,
+                            &treeOptPf);
+      Trace("cc-experiments")
+          << "proof sizes: " << getEqProofSize(d_env, *pf.get()) << ","
+          << getEqProofSize(d_env, greedyPf) << ","
+          << getEqProofSize(d_env, treeOptPf) << std::endl;
+    }
+    else
+    {
+      d_ee.explainPredicate(
+          atom, polarity, tassumps, options().uf.ufAlgorithmMode, pf.get());
+      Trace("cc-experiments")
+          << "proof sizes: " << getEqProofSize(d_env, *pf.get()) << std::endl;
     }
   }
   Trace("pfee-proof") << "...got " << tassumps << std::endl;
@@ -618,8 +661,7 @@ void ProofEqEngine::explainWithProof(Node lit,
   // }
   Trace("pfee-proof") << "pfee::explainWithProof: finished" << std::endl;
   Trace("test") << "pfee::explainWithProof: finished [lit " << lit
-                << ", pf size " << curr->getNumProofNodes() << "]"
-                << std::endl;
+                << ", pf size " << curr->getNumProofNodes() << "]" << std::endl;
 }
 
 }  // namespace eq
