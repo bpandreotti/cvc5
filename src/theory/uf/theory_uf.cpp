@@ -409,12 +409,17 @@ void TheoryUF::explain(TNode literal, Node& exp)
   TNode atom = polarity ? literal : literal[0];
   if (atom.getKind() == Kind::EQUAL)
   {
-    d_equalityEngine->explainEquality(
-        atom[0], atom[1], polarity, assumptions, options().uf.ufAlgorithmMode, nullptr);
+    d_equalityEngine->explainEquality(atom[0],
+                                      atom[1],
+                                      polarity,
+                                      assumptions,
+                                      options().uf.ufAlgorithmMode,
+                                      nullptr);
   }
   else
   {
-    d_equalityEngine->explainPredicate(atom, polarity, assumptions, options().uf.ufAlgorithmMode, nullptr);
+    d_equalityEngine->explainPredicate(
+        atom, polarity, assumptions, options().uf.ufAlgorithmMode, nullptr);
   }
   exp = nodeManager()->mkAnd(assumptions);
 }

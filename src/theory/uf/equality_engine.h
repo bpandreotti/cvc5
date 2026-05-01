@@ -19,10 +19,10 @@
 #define CVC5__THEORY__UF__EQUALITY_ENGINE_H
 
 #include <deque>
+#include <limits>
 #include <queue>
 #include <unordered_map>
 #include <vector>
-#include <limits>
 
 #include "context/cdhashmap.h"
 #include "context/cdo.h"
@@ -199,7 +199,6 @@ class EqualityEngine : public context::ContextNotifyObj, protected EnvObj
                       TNode reason,
                       unsigned pid = MERGED_THROUGH_EQUALITY);
 
-
   //--------------------end updates
   //--------------------------- explanation methods
   /**
@@ -213,7 +212,6 @@ class EqualityEngine : public context::ContextNotifyObj, protected EnvObj
                        std::vector<TNode>& assertions,
                        options::UfAlgorithmMode algo,
                        EqProof* eqp = nullptr);
-
 
   /**
    * Get an explanation of the predicate being true or false.
@@ -433,13 +431,31 @@ class EqualityEngine : public context::ContextNotifyObj, protected EnvObj
     bool d_isRedundant;
 
     uint32_t d_level;
-  public:
 
-    EqualityEdge():
-      d_nodeId(null_edge), d_nextId(null_edge), d_mergeType(MERGED_THROUGH_CONGRUENCE), d_isRedundant(false), d_level(0) {}
+   public:
+    EqualityEdge()
+        : d_nodeId(null_edge),
+          d_nextId(null_edge),
+          d_mergeType(MERGED_THROUGH_CONGRUENCE),
+          d_isRedundant(false),
+          d_level(0)
+    {
+    }
 
-    EqualityEdge(EqualityNodeId nodeId, EqualityNodeId nextId, unsigned type, TNode reason, bool isRedundant, uint32_t level):
-      d_nodeId(nodeId), d_nextId(nextId), d_mergeType(type), d_reason(reason), d_isRedundant(isRedundant), d_level(level) {}
+    EqualityEdge(EqualityNodeId nodeId,
+                 EqualityNodeId nextId,
+                 unsigned type,
+                 TNode reason,
+                 bool isRedundant,
+                 uint32_t level)
+        : d_nodeId(nodeId),
+          d_nextId(nextId),
+          d_mergeType(type),
+          d_reason(reason),
+          d_isRedundant(isRedundant),
+          d_level(level)
+    {
+    }
 
     /** Returns the id of the next edge */
     EqualityEdgeId getNext() const { return d_nextId; }

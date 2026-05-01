@@ -325,8 +325,11 @@ void SharedTermsDatabase::checkForConflict()
   {
     // standard explain
     std::vector<TNode> assumptions;
-    d_equalityEngine->explainEquality(
-        d_conflictLHS, d_conflictRHS, d_conflictPolarity, assumptions, options().uf.ufAlgorithmMode);
+    d_equalityEngine->explainEquality(d_conflictLHS,
+                                      d_conflictRHS,
+                                      d_conflictPolarity,
+                                      assumptions,
+                                      options().uf.ufAlgorithmMode);
     Node conflictNode = nodeManager()->mkAnd(assumptions);
     trnc = TrustNode::mkTrustConflict(conflictNode, nullptr);
   }
