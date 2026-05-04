@@ -1082,12 +1082,13 @@ void EqualityEngine::backtrack()
       d_equalityGraph[node2] = edge1.getNext();
       d_equalityGraph[node1] = edge2.getNext();
 
-      // Remove equality from asserted equalities set
-      d_assertedEqualityPairs.erase(std::make_pair(node1, node2));
-      d_assertedEqualityPairs.erase(std::make_pair(node2, node1));
 
       if (keepRedundantEqualities())
       {
+        // Remove equality from asserted equalities set
+        d_assertedEqualityPairs.erase(std::make_pair(node1, node2));
+        d_assertedEqualityPairs.erase(std::make_pair(node2, node1));
+
         d_edgeLevels.erase(std::make_pair(node1, node2));
         d_edgeLevels.erase(std::make_pair(node2, node1));
       }
@@ -1217,12 +1218,13 @@ void EqualityEngine::addGraphEdge(EqualityNodeId t1,
   // This implicitly defines the limit on the number of extra congruence edges
   // computed
   if (!isRedundant)
-    d_extraEdgeAllowance +=
-        1;  // 1 extra edge allowed for each non-redundant edge
+    // the number of extra edges allowed for each non-redundant edge, controlled
+    // by an option
+    d_extraEdgeAllowance += options().uf.ufMaxRedundancy;
   else
   {
-    Assert(d_extraEdgeAllowance
-           > 0);  // The caller should ensure the allowance is not 0
+    // The caller should ensure the allowance is not 0
+    Assert(d_extraEdgeAllowance > 0);
     d_extraEdgeAllowance -= 1;
   }
 
