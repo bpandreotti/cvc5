@@ -2759,14 +2759,17 @@ void EqualityEngine::propagate()
 
     // If we already asserted this exact equality (or its reverse), we don't add
     // it
-    auto key = std::make_pair(current.d_t1Id, current.d_t2Id);
-    if (d_assertedEqualityPairs.find(key) != d_assertedEqualityPairs.end())
+    if (keepRedundantEqualities())
     {
-      continue;
+      auto key = std::make_pair(current.d_t1Id, current.d_t2Id);
+      if (d_assertedEqualityPairs.find(key) != d_assertedEqualityPairs.end())
+      {
+        continue;
+      }
+      d_assertedEqualityPairs.insert(key);
+      d_assertedEqualityPairs.insert(
+          std::make_pair(current.d_t2Id, current.d_t1Id));
     }
-    d_assertedEqualityPairs.insert(key);
-    d_assertedEqualityPairs.insert(
-        std::make_pair(current.d_t2Id, current.d_t1Id));
 
     Trace("equality::internal")
         << d_name << "::eq::propagate(): t1: "
