@@ -1082,7 +1082,6 @@ void EqualityEngine::backtrack()
       d_equalityGraph[node2] = edge1.getNext();
       d_equalityGraph[node1] = edge2.getNext();
 
-
       if (keepRedundantEqualities())
       {
         // Remove equality from asserted equalities set
@@ -1218,9 +1217,11 @@ void EqualityEngine::addGraphEdge(EqualityNodeId t1,
   // This implicitly defines the limit on the number of extra congruence edges
   // computed
   if (!isRedundant)
-    // the number of extra edges allowed for each non-redundant edge, controlled
+  {
+    // The number of extra edges allowed for each non-redundant edge, controlled
     // by an option
     d_extraEdgeAllowance += options().uf.ufMaxRedundancy;
+  }
   else
   {
     // The caller should ensure the allowance is not 0
@@ -2217,7 +2218,6 @@ void EqualityEngine::getExplanationImpl(
                 << "\n";
 
             std::shared_ptr<EqProof> eqpc;
-            ;
             // Make child proof if a proof is being constructed
             if (eqp)
             {
@@ -2750,7 +2750,7 @@ void EqualityEngine::propagate()
     EqualityNodeId t2classId = getEqualityNode(current.d_t2Id).getFind();
 
     // If already the same, we're done, unless we are keeping redundant
-    // equalities. Note that we de not keep redundant equalities between
+    // equalities. Note that we do not keep redundant equalities between
     // constants, since that would break assumptions below (namely that when
     // propagating constant merging they are different and therefore we are in
     // conflict)
