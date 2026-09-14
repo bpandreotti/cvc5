@@ -106,7 +106,6 @@ class LazyCDProof : public CDProof
     d_blockedAssumptions.insert(d_blockedAssumptions.end(),
                                 blockedAssumptions.begin(),
                                 blockedAssumptions.end());
-    Trace("bruno") << "blocking " << blockedAssumptions << "\n";
   }
 
  protected:
