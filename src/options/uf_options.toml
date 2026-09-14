@@ -105,7 +105,7 @@ name   = "Uninterpreted Functions Theory"
   category   = "undocumented"
   long       = "uf-algo=MODE"
   type       = "UfAlgorithmMode"
-  default    = "GREEDY"
+  default    = "VANILLA"
   help       = "modes for congruence closure algorithm"
   help_mode  = "Modes for congruence closure algorithm."
 [[option.mode.VANILLA]]
