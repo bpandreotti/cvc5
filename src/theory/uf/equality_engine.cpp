@@ -1640,7 +1640,7 @@ uint32_t EqualityEngine::getMergedLevel(EqualityNodeId a, EqualityNodeId b)
   std::queue<std::pair<EqualityNodeId, uint32_t>> queue;
   std::unordered_set<EqualityNodeId> seen;
   queue.push(std::make_pair(a, 0));
-  while (true)
+  while (!queue.empty())
   {
     EqualityNodeId currentNode;
     uint32_t maxLevel;
@@ -1662,6 +1662,10 @@ uint32_t EqualityEngine::getMergedLevel(EqualityNodeId a, EqualityNodeId b)
                                 std::max(maxLevel, edge.getLevel())));
     }
   }
+  // The nodes are expected to be connected by non-redundant edges, so a path
+  // should always exist.
+  Assert(false);
+  return 0;
 }
 
 bool EqualityEngine::keepRedundantEqualities() const
@@ -1683,7 +1687,7 @@ int EqualityEngine::shortestPath(EqualityNodeId start,
 
   priorityQueue.push(BfsData(start, null_edge, 0));
 
-  while (true)
+  while (!priorityQueue.empty())
   {
     BfsData current = priorityQueue.top();
     priorityQueue.pop();
@@ -1727,6 +1731,9 @@ int EqualityEngine::shortestPath(EqualityNodeId start,
           BfsData(d_equalityEdges[edge].getNodeId(), edge, newDist));
     }
   }
+  // The nodes are expected to be connected, so a path should always exist.
+  Assert(false);
+  return std::numeric_limits<int>::max();
 }
 
 void EqualityEngine::computeTreeOptWeights()
@@ -2115,7 +2122,7 @@ void EqualityEngine::getExplanationImpl(
 
   // Find a path from t1 to t2 in the graph
   priorityQueue.push(BfsData(t1Id, null_edge, 0));
-  while (true)
+  while (!priorityQueue.empty())
   {
     // The next node to visit
     BfsData current = priorityQueue.top();
@@ -2501,7 +2508,8 @@ void EqualityEngine::getExplanationImpl(
       currentEdgeId = d_equalityEdges[currentEdgeId].getNext();
     }
   }
-  cache[cacheKey] = eqp;
+  // The nodes are expected to be connected, so a path should always exist.
+  Assert(false);
 }
 
 void EqualityEngine::addTriggerEquality(TNode eq)
