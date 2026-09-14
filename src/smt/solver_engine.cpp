@@ -843,11 +843,12 @@ Result SolverEngine::checkSatInternal(const std::vector<Node>& assumptions)
     }
   }
   else if (d_env->getOptions().proof.produceFinalProof
+           && d_env->isSatProofProducing()
            && r.getStatus() == Result::UNSAT)
   {
     PropEngine* pe = d_smtSolver->getPropEngine();
-    Assert(pe->getProof() != nullptr);
     std::shared_ptr<ProofNode> pePfn = pe->getProof();
+    Assert(pePfn != nullptr);
     d_pfManager->connectProofToAssertions(pePfn, d_smtSolver->getAssertions());
     // now check the proof to make sure stats are computed
     d_pfManager->checkFinalProof(pePfn);
