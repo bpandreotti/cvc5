@@ -2751,7 +2751,7 @@ void EqualityEngine::propagate()
     {
       if (!keepRedundantEqualities()
           || (d_isConstant[t1classId] && d_isConstant[t2classId])
-          || d_extraEdgeAllowance == 0)
+          || d_extraEdgeAllowance <= 0)
       {
         continue;
       }

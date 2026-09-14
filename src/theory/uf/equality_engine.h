@@ -382,8 +382,14 @@ class EqualityEngine : public context::ContextNotifyObj, protected EnvObj
   /** Number of extra equalities added */
   context::CDO<DefaultSizeType> d_extraEqualitiesCount;
 
-  /** The number of extra edges that may still be added */
-  int d_extraEdgeAllowance;
+  /**
+   * The number of extra edges that may still be added before a non-redundant
+   * edge is added, as a way to limit the number of redundant edges added.
+   * This is intentionally not context-dependent, since we want to limit the
+   * redundant edges over the entire run of the equality engine, and not just
+   * the current context.
+   */
+  int d_extraEdgeAllowance = 0;
 
   /** Memory for the use-list nodes */
   std::vector<UseListNode> d_useListNodes;
